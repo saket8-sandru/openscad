@@ -10,7 +10,12 @@ matrix before it is called finished.
 
 | Project | What it is | Status |
 | --- | --- | --- |
-| [`waveform-wall`](projects/waveform-wall/docs/README.md) | **LAMELLA** — parametric ribbed wave wall-art generator. Any size, tiled automatically, with vertical seams that measure invisible. | CAD-validated, not yet print-tested |
+| [`waveform-wall`](projects/waveform-wall/docs/README.md) | **LAMELLA** — parametric ribbed wave wall-art generator. Any size, tiled automatically, with vertical seams that measure invisible. 22 controls. | CAD-validated, not yet print-tested |
+| [`waveform-frame`](projects/waveform-frame/docs/README.md) | **LAMELLA FRAME** — the simple sibling. One framed piece off one plate, natural terrain field, 8 controls. | CAD-validated, not yet print-tested |
+
+The two share a field engine in spirit but not in code: the frame version uses
+scattered terrain points rather than interfering waves, because independent
+placement is what reads as natural, and it drops tiling entirely.
 
 ## Layout
 

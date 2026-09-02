@@ -1,0 +1,69 @@
+{
+  "name": "LAMELLA FRAME (single-piece framed relief)",
+  "scad": "src/waveform_frame.scad",
+  "outdir": "exports",
+  "previewdir": "previews",
+  "_notes": [
+    "One piece, so every case expects exactly one connected body.",
+    "max_bbox is the build-volume check: printed back-down the footprint is",
+    "panel_size square and the printed height is BACK_THICKNESS + frame_h.",
+    "max_degenerate allows the collinear slivers CGAL emits where the back",
+    "panel's front plane meets the frame's inner edge, one per fin. Zero area,",
+    "mesh stays watertight and genus-0.",
+    "Randomize-on cases assert mesh validity only; asserting a volume would be",
+    "asserting on a coin toss. Staying valid for ANY roll is the point."
+  ],
+  "cases": [
+    { "name": "default",
+      "params": {},
+      "expect": { "watertight": true, "bodies": 1, "max_bbox": [180,180,180], "max_degenerate": 120 } },
+
+    { "name": "seed_23", "params": { "seed": 23 },
+      "expect": { "watertight": true, "bodies": 1, "max_bbox": [180,180,180], "max_degenerate": 120 } },
+    { "name": "seed_150", "params": { "seed": 150 },
+      "expect": { "watertight": true, "bodies": 1, "max_bbox": [180,180,180], "max_degenerate": 120 } },
+
+    { "name": "randomize_on", "params": { "randomize": "On - new every render" },
+      "expect": { "watertight": true, "bodies": 1, "max_bbox": [180,180,180], "max_degenerate": 120 } },
+
+    { "name": "panel_min", "params": { "panel_size": 100, "fin_pitch": 4.0 },
+      "expect": { "watertight": true, "bodies": 1, "max_bbox": [180,180,180], "max_degenerate": 160 } },
+    { "name": "panel_max", "params": { "panel_size": 250 },
+      "expect": { "watertight": true, "bodies": 1, "max_bbox": [256,256,256], "max_degenerate": 200 } },
+
+    { "name": "relief_min", "params": { "relief_depth": 6, "frame_depth": 4 },
+      "expect": { "watertight": true, "bodies": 1, "max_bbox": [180,180,180], "max_degenerate": 120 } },
+    { "name": "relief_max_deep_frame", "params": { "relief_depth": 40, "frame_depth": 50 },
+      "expect": { "watertight": true, "bodies": 1, "max_bbox": [180,180,180], "max_degenerate": 120 } },
+
+    { "name": "pitch_fine", "params": { "fin_pitch": 4.0 },
+      "expect": { "watertight": true, "bodies": 1, "max_bbox": [180,180,180], "max_degenerate": 240 } },
+    { "name": "pitch_coarse", "params": { "fin_pitch": 14.0 },
+      "expect": { "watertight": true, "bodies": 1, "max_bbox": [180,180,180], "max_degenerate": 80 } },
+
+    { "name": "no_frame", "params": { "frame_width": 0 },
+      "expect": { "watertight": true, "bodies": 1, "max_bbox": [180,180,180], "max_degenerate": 120 } },
+    { "name": "frame_wide", "params": { "frame_width": 25 },
+      "expect": { "watertight": true, "bodies": 1, "max_bbox": [180,180,180], "max_degenerate": 120 } },
+    { "name": "frame_narrow_no_keyholes", "params": { "frame_width": 4 },
+      "expect": { "watertight": true, "bodies": 1, "max_bbox": [180,180,180], "max_degenerate": 120 } },
+
+    { "name": "texture_min", "params": { "texture": 0.40 },
+      "expect": { "watertight": true, "bodies": 1, "max_bbox": [180,180,180], "max_degenerate": 120 } },
+    { "name": "texture_max", "params": { "texture": 1.60 },
+      "expect": { "watertight": true, "bodies": 1, "max_bbox": [180,180,180], "max_degenerate": 120 } },
+
+    { "name": "everything_max",
+      "params": { "panel_size": 250, "relief_depth": 40, "fin_pitch": 4.0,
+                  "frame_width": 25, "frame_depth": 50, "texture": 1.60 },
+      "expect": { "watertight": true, "bodies": 1, "max_bbox": [256,256,256], "max_degenerate": 300 } },
+    { "name": "everything_min",
+      "params": { "panel_size": 100, "relief_depth": 6, "fin_pitch": 14.0,
+                  "frame_width": 0, "frame_depth": 4, "texture": 0.40 },
+      "expect": { "watertight": true, "bodies": 1, "max_bbox": [180,180,180], "max_degenerate": 80 } }
+  ],
+  "views": [
+    { "name": "hero", "camera": "0,0,0,68,0,215,0" },
+    { "name": "back", "camera": "0,0,0,66,0,20,0" }
+  ]
+}

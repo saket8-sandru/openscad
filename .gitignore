@@ -4,6 +4,7 @@ projects/*/exports/*
 !projects/*/exports/default_tile.stl
 !projects/*/exports/fit_coupon.stl
 !projects/*/exports/joining_keys.stl
+!projects/*/exports/default.stl
 
 *.stl.tmp
 *.csg
