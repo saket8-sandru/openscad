@@ -124,7 +124,8 @@ and quantising depth too tends to read as digital error rather than contours.
 Customizer ranges are not protection on their own, so the generator constrains
 its own geometry:
 
-- fins never thinner than two extrusion widths;
+- fins never thinner than two extrusion widths, and never closer together than
+  a slot the slicer can resolve — the fin pitch is capped so both fit;
 - a relief floor keeps every fin attached to the backing with real material
   rather than tapering to a knife edge;
 - the backing is raised to a workable thickness whenever dovetail keys are

@@ -128,6 +128,15 @@ terrace_steps = 0;       // [0:1:10]
 // =====================================================================
 
 EPS = 0.02;          // boolean overlap; never rely on coplanar contact
+
+// How many times a view ray may cross a single extrusion. OpenSCAD's F5
+// preview uses depth peeling bounded by this number; set too low, back faces
+// show through the surface (red, in the Cornfield scheme) and the model looks
+// broken even though the exported mesh is perfect -- F6/CGAL is exact and
+// ignores it. A fin's front edge is a wavy terrain, so a ray running up the
+// panel can enter and leave it once per ridge; 12 covers the ridge counts the
+// anti-alias guard permits, with margin.
+FIN_CONVEXITY = 12;
 // Cutter size. Deliberately modest: at 1e6 the ratio between coordinate and
 // feature size is seven orders of magnitude, and CGAL was emitting zero-area
 // triangles. It only has to exceed the artwork.
@@ -235,8 +244,19 @@ function spread_point(k, seed_offset, inset) =
 
 short_side = min(artwork_width, artwork_height);
 
-// A fin thinner than two extrusion widths will not print as a solid wall.
+// A fin thinner than two extrusion widths will not print as a solid wall...
 min_fin_thickness = max(2 * nozzle, 0.8);
+
+// ...and two fins closer than this fuse into one slab. The slicer cannot put a
+// wall on each side of a slot much narrower than about one and a half nozzle
+// widths, so it either bridges the gap or drops it. Without this floor the
+// finest settings produced a 0.48mm gap, which would print as a solid block
+// with faint scoring -- geometrically valid, and completely wrong.
+min_fin_gap = max(0.6, 1.4 * nozzle);
+
+// The pitch has to be able to hold both, so it is capped here rather than
+// leaving the two floors to fight each other.
+min_pitch = min_fin_thickness + min_fin_gap;
 
 // --- tiling -------------------------------------------------------------
 // PMM's auto-arrange gets unreliable past roughly 240 x 235mm, so tiles are
@@ -256,11 +276,16 @@ tile_h = artwork_height / tile_rows;
 // Fins per tile is an integer, so a tile edge always falls exactly on a fin
 // pitch boundary -- i.e. in the middle of a gap, never through a fin. That
 // is what makes vertical seams disappear.
-fins_per_tile = max(4, round(tile_w / fin_pitch));
+fins_per_tile = max(4, min(round(tile_w / fin_pitch),
+                           floor(tile_w / min_pitch)));
 pitch         = tile_w / fins_per_tile;
 fin_count     = fins_per_tile * tile_cols;
 
-fin_thickness = max(min_fin_thickness, pitch * (1 - clamp(gap_fraction, 0.10, 0.60)));
+// Clamped from both sides: thick enough to print as a wall, thin enough to
+// leave a slot the slicer will actually resolve.
+fin_thickness = clamp(pitch * (1 - clamp(gap_fraction, 0.10, 0.60)),
+                      min_fin_thickness,
+                      pitch - min_fin_gap);
 fin_gap       = pitch - fin_thickness;
 
 // --- relief -------------------------------------------------------------
@@ -545,7 +570,7 @@ function fin_range(c) = [ c * fins_per_tile, (c + 1) * fins_per_tile - 1 ];
 module fin(x, z0, z1) {
     translate([x - fin_thickness / 2, 0, z0])
         rotate([90, 0, 90])
-            linear_extrude(height = fin_thickness)
+            linear_extrude(height = fin_thickness, convexity = FIN_CONVEXITY)
                 polygon(fin_profile(x, z0, z1, z_samples));
 }
 
@@ -556,7 +581,7 @@ function bowtie_pts(grow) =
     [ [-r, -w], [-r, w], [0, t], [r, w], [r, -w], [0, -t] ];
 
 module bowtie(grow, thickness) {
-    linear_extrude(height = thickness) polygon(bowtie_pts(grow));
+    linear_extrude(height = thickness, convexity = 4) polygon(bowtie_pts(grow));
 }
 
 // Key stations along a seam of the given length, inset from its ends.

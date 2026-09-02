@@ -52,10 +52,16 @@ tile_rows    = ceil(artwork_height / tile_limit)
 tile_w       = artwork_width  / tile_cols
 tile_h       = artwork_height / tile_rows
 
-fins_per_tile = max(4, round(tile_w / fin_pitch))      -- INTEGER
+min_fin_thickness = max(2 * nozzle, 0.8)     -- thinner will not print as a wall
+min_fin_gap       = max(0.6, 1.4 * nozzle)   -- narrower and the fins fuse
+min_pitch         = min_fin_thickness + min_fin_gap
+
+fins_per_tile = max(4, min(round(tile_w / fin_pitch),
+                           floor(tile_w / min_pitch)))    -- INTEGER
 pitch         = tile_w / fins_per_tile
 fin_count     = fins_per_tile * tile_cols
-fin_thickness = max(2 * nozzle, 0.8,  pitch * (1 - gap_fraction))
+fin_thickness = clamp(pitch * (1 - gap_fraction),
+                      min_fin_thickness, pitch - min_fin_gap)
 fin_gap       = pitch - fin_thickness
 
 min_relief    = max(1.2, 0.12 * max_relief)
@@ -124,6 +130,7 @@ Different interfaces get different allowances; there is no single global value.
 | Dovetail key in its pocket | `key_fit` = 0.20 mm, applied as a 0.10 mm offset per face | A sliding-but-retained fit. Exposed because it is the one dimension a printer's XY compensation will move. |
 | Fin to fin | `fin_gap`, ≥ 1.0 mm typical at defaults | Must stay well clear of fusing; it is also the dominant visual parameter. |
 | Fin minimum thickness | `max(2 * nozzle, 0.8)` | Below two extrusion widths a wall does not print as a solid. |
+| Fin minimum gap | `max(0.6, 1.4 * nozzle)` | A slot narrower than about one and a half nozzle widths cannot carry a wall on each side; the slicer bridges or drops it. Without this the finest settings gave a 0.48 mm gap, which prints as a solid block with faint scoring — valid geometry, wrong object. |
 | Backing under a key pocket | `key_skin = max(0.8, 0.35 * back_t)` | Skin left toward the front so a pocket never shows through. |
 | Screw head clearance | 8.4 mm circle, 4.4 mm slot | Sized for a #6 / 4 mm screw head. **Not verified against real hardware.** |
 | Boolean cutter overlap | `EPS` = 0.02 mm | Cutters always overshoot; no coplanar Boolean faces anywhere. |
@@ -139,4 +146,7 @@ Customizer ranges are not protection. The generator constrains itself:
 - the fin's back edge stops half-way into the backing, giving a genuine
   volumetric overlap instead of a coplanar contact;
 - `WARP_AMP` and the harmonic truncation cap detail against the fin pitch;
-- `f_terrace` defaults to 0 and no preset uses it.
+- `f_terrace` defaults to 0 and no preset uses it;
+- extrusions declare `convexity`, so OpenSCAD's F5 preview does not show back
+  faces through the fins. This affects display only — CGAL export is exact and
+  the mesh is byte-identical either way.
