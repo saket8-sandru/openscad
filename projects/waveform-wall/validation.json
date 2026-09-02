@@ -1,0 +1,490 @@
+{
+  "name": "LAMELLA waveform wall panel",
+  "scad": "src/waveform_wall.scad",
+  "outdir": "exports",
+  "previewdir": "previews",
+  "_notes": [
+    "max_bbox encodes the real manufacturing constraint: a tile must fit the",
+    "bed. Printed back-down the tile's footprint is (width x height) and its",
+    "printed height is (backing + relief), which is exactly the model bbox,",
+    "so one box check covers all three axes.",
+    "max_degenerate allows the collinear slivers CGAL emits where the",
+    "backing's front plane meets a tile's top edge -- one inserted vertex per",
+    "fin. They have zero area and leave the mesh watertight and genus-0.",
+    "An assembled multi-tile artwork reports ONE connected body, not one per tile: adjacent tiles butt on exactly coincident planes, so loading the STL welds the shared vertices. That is confirmation the seams close with no gap and no overlap -- the tiles are still separate printed parts."
+  ],
+  "cases": [
+    {
+      "name": "default_tile",
+      "params": {
+        "output": "Single tile"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          180,
+          180,
+          180
+        ],
+        "max_degenerate": 80
+      }
+    },
+    {
+      "name": "default_assembled",
+      "params": {
+        "output": "Assembled preview"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          180,
+          180,
+          180
+        ],
+        "max_degenerate": 80
+      }
+    },
+    {
+      "name": "multitile_2x2_assembled",
+      "params": {
+        "output": "Assembled preview",
+        "artwork_width": 300,
+        "artwork_height": 300
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          300.1,
+          180,
+          300.1
+        ],
+        "max_degenerate": 320
+      }
+    },
+    {
+      "name": "multitile_2x2_corner",
+      "params": {
+        "output": "Single tile",
+        "artwork_width": 300,
+        "artwork_height": 300,
+        "tile_col": 2,
+        "tile_row": 2
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          180,
+          180,
+          180
+        ],
+        "max_degenerate": 80
+      }
+    },
+    {
+      "name": "multitile_3x1_middle",
+      "params": {
+        "output": "Single tile",
+        "artwork_width": 480,
+        "artwork_height": 160,
+        "tile_col": 2,
+        "tile_row": 1
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          180,
+          180,
+          180
+        ],
+        "max_degenerate": 80
+      }
+    },
+    {
+      "name": "style_flow",
+      "params": {
+        "output": "Single tile",
+        "style": "Flow"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          180,
+          180,
+          180
+        ],
+        "max_degenerate": 80
+      }
+    },
+    {
+      "name": "style_vortex",
+      "params": {
+        "output": "Single tile",
+        "style": "Vortex"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          180,
+          180,
+          180
+        ],
+        "max_degenerate": 80
+      }
+    },
+    {
+      "name": "style_dune",
+      "params": {
+        "output": "Single tile",
+        "style": "Dune"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          180,
+          180,
+          180
+        ],
+        "max_degenerate": 80
+      }
+    },
+    {
+      "name": "style_liquid",
+      "params": {
+        "output": "Single tile",
+        "style": "Liquid"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          180,
+          180,
+          180
+        ],
+        "max_degenerate": 80
+      }
+    },
+    {
+      "name": "style_interference",
+      "params": {
+        "output": "Single tile",
+        "style": "Interference"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          180,
+          180,
+          180
+        ],
+        "max_degenerate": 80
+      }
+    },
+    {
+      "name": "style_ripple",
+      "params": {
+        "output": "Single tile",
+        "style": "Ripple"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          180,
+          180,
+          180
+        ],
+        "max_degenerate": 80
+      }
+    },
+    {
+      "name": "min_everything",
+      "params": {
+        "output": "Single tile",
+        "artwork_width": 80,
+        "artwork_height": 80,
+        "max_relief": 8,
+        "fin_pitch": 4.0,
+        "gap_fraction": 0.12,
+        "back_thickness": 1.6,
+        "fin_smoothness": 4.0,
+        "intensity": 0.4,
+        "nozzle": 0.2
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          180,
+          180,
+          180
+        ],
+        "max_degenerate": 120
+      }
+    },
+    {
+      "name": "max_relief_deep",
+      "params": {
+        "output": "Single tile",
+        "max_relief": 60,
+        "intensity": 1.6
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          180,
+          180,
+          180
+        ],
+        "max_degenerate": 80
+      }
+    },
+    {
+      "name": "coarse_nozzle_thick_wall",
+      "params": {
+        "output": "Single tile",
+        "nozzle": 0.8,
+        "back_thickness": 5.0,
+        "fin_pitch": 20.0,
+        "gap_fraction": 0.45
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          180,
+          180,
+          180
+        ],
+        "max_degenerate": 60
+      }
+    },
+    {
+      "name": "fine_pitch_smooth",
+      "params": {
+        "output": "Single tile",
+        "fin_pitch": 4.0,
+        "gap_fraction": 0.12,
+        "fin_smoothness": 0.8
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          180,
+          180,
+          180
+        ],
+        "max_degenerate": 200
+      }
+    },
+    {
+      "name": "big_artwork_one_tile",
+      "params": {
+        "output": "Single tile",
+        "artwork_width": 1200,
+        "artwork_height": 900,
+        "tile_col": 4,
+        "tile_row": 3
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          180,
+          180,
+          180
+        ],
+        "max_degenerate": 80
+      }
+    },
+    {
+      "name": "wide_aspect_tile",
+      "params": {
+        "output": "Single tile",
+        "artwork_width": 700,
+        "artwork_height": 200,
+        "tile_col": 3,
+        "tile_row": 1
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          180,
+          180,
+          180
+        ],
+        "max_degenerate": 80
+      }
+    },
+    {
+      "name": "printer_x1_large_tile",
+      "params": {
+        "output": "Single tile",
+        "printer": "A1 / P1 / X1 (256 x 256)",
+        "artwork_width": 460,
+        "artwork_height": 460
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          256,
+          256,
+          256
+        ],
+        "max_degenerate": 120
+      }
+    },
+    {
+      "name": "single_tile_no_joints_no_mount",
+      "params": {
+        "output": "Single tile",
+        "artwork_width": 160,
+        "artwork_height": 160,
+        "joint_style": "None (butt joint)",
+        "wall_mount": "None"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          180,
+          180,
+          180
+        ],
+        "max_degenerate": 80
+      }
+    },
+    {
+      "name": "loose_key_fit",
+      "params": {
+        "output": "Single tile",
+        "key_fit": 0.6
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          180,
+          180,
+          180
+        ],
+        "max_degenerate": 80
+      }
+    },
+    {
+      "name": "advanced_extremes",
+      "params": {
+        "output": "Single tile",
+        "swirl_scale": 2.0,
+        "extra_vortices": 3,
+        "detail_scale": 2.0,
+        "relief_gamma": 1.8,
+        "flow_angle": 200
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          180,
+          180,
+          180
+        ],
+        "max_degenerate": 80
+      }
+    },
+    {
+      "name": "advanced_terraced",
+      "params": {
+        "output": "Single tile",
+        "terrace_steps": 6,
+        "style": "Dune"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          180,
+          180,
+          180
+        ],
+        "max_degenerate": 120
+      }
+    },
+    {
+      "name": "zero_swirl",
+      "params": {
+        "output": "Single tile",
+        "swirl_scale": 0.0,
+        "extra_vortices": -2
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          180,
+          180,
+          180
+        ],
+        "max_degenerate": 80
+      }
+    },
+    {
+      "name": "joining_keys",
+      "params": {
+        "output": "Joining keys"
+      },
+      "expect": {
+        "watertight": true,
+        "max_bbox": [
+          180,
+          180,
+          180
+        ],
+        "max_degenerate": 8
+      }
+    },
+    {
+      "name": "fit_coupon",
+      "params": {
+        "output": "Fit coupon"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 3,
+        "max_bbox": [
+          180,
+          180,
+          180
+        ],
+        "max_degenerate": 0
+      }
+    }
+  ],
+  "views": [
+    {
+      "name": "hero",
+      "camera": "0,0,0,74,0,207,0"
+    },
+    {
+      "name": "front",
+      "camera": "0,0,0,90,0,180,0"
+    },
+    {
+      "name": "side",
+      "camera": "0,0,0,90,0,270,0"
+    }
+  ]
+}

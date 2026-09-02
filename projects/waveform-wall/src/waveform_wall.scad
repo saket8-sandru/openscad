@@ -23,11 +23,13 @@
 
 /* [Artwork] */
 
-// Overall artwork width in mm (tiled automatically if wider than the bed).
-artwork_width = 300;   // [80:10:1600]
+// Overall artwork width in mm. Anything larger than the bed is split into
+// tiles automatically; the default is a single tile, so a first print needs
+// no assembly at all.
+artwork_width = 170;   // [80:10:1600]
 
 // Overall artwork height in mm.
-artwork_height = 300;  // [80:10:1600]
+artwork_height = 170;  // [80:10:1600]
 
 // How far the tallest fins stand off the backing. The single biggest driver of how dramatic the piece looks.
 max_relief = 20;       // [8:1:60]
@@ -678,9 +680,14 @@ module tile(c, r) {
 module joining_keys() {
     n_v = joints_on ? (tile_cols - 1) * len(key_stations(artwork_height)) : 0;
     n_h = joints_on ? (tile_rows - 1) * len(key_stations(artwork_width)) : 0;
-    total = n_v + n_h;
+    // A single-tile artwork needs no keys, but an empty output is an export
+    // failure rather than a useful answer, so lay out one spare. Printing a
+    // spare or two is good practice for the multi-tile case anyway.
+    total = max(1, n_v + n_h);
     per_row = max(1, ceil(sqrt(total)));
-    for (i = [0 : max(0, total - 1)])
+    // Keys are flat plates and print lying down, so they are laid out in the
+    // XY plane -- a different "up" from the tiles, which print back-down.
+    for (i = [0 : total - 1])
         translate([(i % per_row) * (2 * key_reach + 6),
                    floor(i / per_row) * (key_wide + 6), 0])
             bowtie(0, key_thickness);
@@ -697,27 +704,55 @@ module assembled() {
 
 module all_tiles_laid_out() {
     gap = 8;
+    // Each tile already sits at its artwork position, so only the extra
+    // separation has to be added.
     for (c = [0 : tile_cols - 1], r = [0 : tile_rows - 1])
-        translate([c * (tile_w + gap) - c * tile_w,
-                   0,
-                   r * (tile_h + gap) - r * tile_h])
-            tile(c, r);
+        translate([c * gap, 0, r * gap]) tile(c, r);
 }
 
-// A short strip of the real panel plus one real key pocket, so fit can be
-// checked for a few grams of filament instead of a whole tile.
-module fit_coupon() {
-    n = 6;
+// Fit coupon: two short strips that meet at a REAL seam, plus a real key.
+//
+// An earlier version was one strip with a whole bowtie pocket in the middle.
+// That tested a harder print than the product ever asks for -- a tile only
+// ever contains half a pocket, so the coupon's bridge was 26mm where the real
+// one is 13mm. Splitting it into two halves reproduces the actual printed
+// condition, and turns the coupon into a better test as well: butt the strips
+// together and it shows the key fit, the seam gap, and whether the surface
+// really does continue across the join.
+//
+// Fins keep their global positions, so the two halves carry the same stretch
+// of field they would in the finished piece.
+module coupon_strip(i0, n, h, seam_at_right) {
+    x0 = i0 * pitch;
     w = n * pitch;
-    difference() {
-        union() {
-            translate([0, -back_t, 0]) cube([w, back_t, 46]);
-            for (i = [0 : n - 1]) fin(fin_x(i) - fin_x(0) + pitch / 2, 0, 46);
+    seam = seam_at_right ? x0 + w : x0;
+    intersection() {
+        difference() {
+            union() {
+                translate([x0, -back_t, 0]) cube([w, back_t, h]);
+                for (i = [i0 : i0 + n - 1]) fin(fin_x(i), 0, h);
+            }
+            translate([seam, -back_t - EPS, h / 2])
+                rotate([-90, 0, 0]) bowtie(key_fit / 2, key_thickness + EPS);
         }
-        translate([w / 2, -back_t - EPS, 23])
-            rotate([-90, 0, 0]) bowtie(key_fit / 2, key_thickness + EPS);
+        translate([x0, -back_t - 1, 0])
+            cube([w, back_t + max_relief + 2, h]);
     }
-    translate([w + 8, -back_t, 0]) bowtie(0, key_thickness);
+}
+
+module fit_coupon() {
+    n = 3;
+    h = 46;
+    w = n * pitch;
+    part_gap = 12;
+    coupon_strip(0, n, h, true);
+    translate([part_gap, 0, 0]) coupon_strip(n, n, h, false);
+    // Loose key, clear of both strips. The bowtie is centred on its own
+    // origin and reaches key_reach either side, so that reach is part of the
+    // offset; it is rotated so its thickness runs along the depth axis, which
+    // is what lets it lie flat on the same plate as the strips.
+    translate([2 * w + part_gap + 12 + key_reach, -back_t, key_wide])
+        rotate([-90, 0, 0]) bowtie(0, key_thickness);
 }
 
 module main() {
