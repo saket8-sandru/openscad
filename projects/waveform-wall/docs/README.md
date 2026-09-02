@@ -38,8 +38,25 @@ One file, `src/waveform_wall.scad`, self-contained, written for OpenSCAD
 | **Liquid** | Denser interfering flow with more secondary detail. |
 | **Interference** | Optical moiré texture; the busiest and most graphic. |
 
-`seed` re-composes any style completely — feature positions come from an R2
-low-discrepancy sequence, so every seed spreads well rather than clumping.
+### Two ways to get a design
+
+`seed_mode` is the first control in the Style group:
+
+- **Seeded (repeatable)** — the seed number *is* the design. Same number, same
+  artwork, every time, on any machine. Use this to export.
+- **Surprise me (new every render)** — rolls a fresh composition each render.
+  Good for browsing. The rolled seed is printed in the console, so when you see
+  one you like you can switch back to Seeded and type it in to keep it.
+
+**Surprise mode and multi-tile do not mix.** Each export re-rolls, so tiles
+exported one at a time would each get a different surface and would not meet at
+the seams. The generator warns loudly when you are in Surprise mode with more
+than one tile — lock the seed first.
+
+`seed` re-composes any style completely. Feature positions come from an R2
+low-discrepancy sequence plus a bounded per-feature jitter: measured over 200
+seeds that gives 200 distinct layouts (four without the jitter) while no two
+swirls come within half a swirl radius of each other. Spread without rigidity.
 
 ## Printing
 

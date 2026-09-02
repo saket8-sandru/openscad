@@ -11,7 +11,8 @@
     "max_degenerate allows the collinear slivers CGAL emits where the",
     "backing's front plane meets a tile's top edge -- one inserted vertex per",
     "fin. They have zero area and leave the mesh watertight and genus-0.",
-    "An assembled multi-tile artwork reports ONE connected body, not one per tile: adjacent tiles butt on exactly coincident planes, so loading the STL welds the shared vertices. That is confirmation the seams close with no gap and no overlap -- the tiles are still separate printed parts."
+    "An assembled multi-tile artwork reports ONE connected body, not one per tile: adjacent tiles butt on exactly coincident planes, so loading the STL welds the shared vertices. That is confirmation the seams close with no gap and no overlap -- the tiles are still separate printed parts.",
+    "Surprise mode rolls a new seed on every render, so its cases assert mesh validity only -- asserting a volume would be asserting on a coin toss. That it stays valid for ANY rolled seed is the point of the case."
   ],
   "cases": [
     {
@@ -470,6 +471,44 @@
           180
         ],
         "max_degenerate": 0
+      }
+    },
+    {
+      "name": "surprise_mode",
+      "params": {
+        "output": "Single tile",
+        "seed_mode": "Surprise me (new every render)"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          180,
+          180,
+          180
+        ],
+        "max_degenerate": 80
+      }
+    },
+    {
+      "name": "surprise_mode_multitile",
+      "params": {
+        "output": "Single tile",
+        "seed_mode": "Surprise me (new every render)",
+        "artwork_width": 300,
+        "artwork_height": 300,
+        "tile_col": 2,
+        "tile_row": 2
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          180,
+          180,
+          180
+        ],
+        "max_degenerate": 80
       }
     }
   ],

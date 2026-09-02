@@ -24,6 +24,7 @@ import numpy as np
 
 FINS_PER_WAVE = 3.2   # anti-alias guard; see the .scad
 WARP_N = 17
+FEATURE_JITTER = 0.16
 TERRACE_RISER = 0.34
 R2_A1 = 0.7548776662   # 1 / plastic number
 R2_A2 = 0.5698402910   # 1 / plastic number squared
@@ -271,10 +272,14 @@ class FieldSpec:
 
 
 def spread_point(spec, k, seed_offset, inset):
-    ox = hash01(spec.seed * 3 + seed_offset, spec.seed)
-    oz = hash01(spec.seed * 5 + seed_offset, spec.seed)
-    return ((inset + (1 - 2 * inset) * r2_frac(k, ox, R2_A1)) * spec.artwork_width,
-            (inset + (1 - 2 * inset) * r2_frac(k, oz, R2_A2)) * spec.artwork_height)
+    """R2 sequence plus bounded per-feature jitter; mirrors the .scad."""
+    bx = r2_frac(k, hash01(spec.seed * 3 + seed_offset, spec.seed), R2_A1)
+    bz = r2_frac(k, hash01(spec.seed * 5 + seed_offset, spec.seed), R2_A2)
+    jx = (hash01(k * 17 + seed_offset + 101, spec.seed) - 0.5) * FEATURE_JITTER
+    jz = (hash01(k * 17 + seed_offset + 211, spec.seed) - 0.5) * FEATURE_JITTER
+    clamp01 = lambda v: min(max(v, 0.0), 1.0)
+    return ((inset + (1 - 2 * inset) * clamp01(bx + jx)) * spec.artwork_width,
+            (inset + (1 - 2 * inset) * clamp01(bz + jz)) * spec.artwork_height)
 
 
 def vortices(spec):

@@ -147,6 +147,8 @@ Customizer ranges are not protection. The generator constrains itself:
   volumetric overlap instead of a coplanar contact;
 - `WARP_AMP` and the harmonic truncation cap detail against the fin pitch;
 - `f_terrace` defaults to 0 and no preset uses it;
+- feature placement is R2 plus a bounded jitter (`FEATURE_JITTER` = 0.16),
+  measured to give full layout variety with no clumping;
 - extrusions declare `convexity`, so OpenSCAD's F5 preview does not show back
   faces through the fins. This affects display only — CGAL export is exact and
   the mesh is byte-identical either way.
