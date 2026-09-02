@@ -45,8 +45,9 @@ seed_mode = "Seeded (repeatable)"; // [Seeded (repeatable), Surprise me (new eve
 // Which artwork to generate, in Seeded mode. Every value is a different piece.
 seed = 7;       // [1:1:199]
 
-// Overall character of the surface.
-style = "Ripple"; // [Flow, Vortex, Dune, Liquid, Interference, Ripple]
+// Overall character of the surface. "Surprise me" picks one for you -- from
+// the seed in Seeded mode, so it stays repeatable, or freshly in Surprise mode.
+style = "Ripple"; // [Surprise me, Flow, Vortex, Dune, Liquid, Interference, Ripple]
 
 // Boldness of the relief. Below 1 calms the surface, above 1 exaggerates it.
 intensity = 1.0; // [0.40:0.05:1.60]
@@ -176,14 +177,33 @@ STYLE_TABLE = [
 /* Ripple       */ [  2, 0.38, 0.80, 2.0, 0.50, 30, 1.00, 0.24,  1, 0.70, 0.45,  3, 0.80, 0.80, 0.42, 0.30, 1.00 ],
 ];
 
+// Row order must match STYLE_TABLE above.
+STYLE_NAMES = ["Flow", "Vortex", "Dune", "Liquid", "Interference", "Ripple"];
+
+// "Surprise me" resolves through the same seed everything else uses, so the
+// two mode controls compose instead of fighting: Seeded + Surprise me gives a
+// style that is still repeatable from the seed number, while Surprise mode +
+// Surprise me rolls both together. One rule, both behaviours.
+//
+// The hash channel (23 / 97) was chosen by counting what it actually picks
+// across the whole seed range. That is not overfitting: the slider is 1..199,
+// so the population is finite and can simply be enumerated. It gives
+// [33,34,35,31,31,35] against an even 33.2 -- chi-square 0.51. The first
+// channel tried gave [29,34,40,45,20,31], which visibly under-served
+// Interference.
 function style_index() =
-      style == "Flow"         ? 0
+      style == "Surprise me"  ? min(len(STYLE_NAMES) - 1,
+                                    floor(hash01(active_seed * 23 + 97, active_seed)
+                                          * len(STYLE_NAMES)))
+    : style == "Flow"         ? 0
     : style == "Vortex"       ? 1
     : style == "Dune"         ? 2
     : style == "Liquid"       ? 3
     : style == "Interference" ? 4
     : style == "Ripple"       ? 5
     :                           0;
+
+function active_style() = STYLE_NAMES[style_index()];
 
 function sp(i) = STYLE_TABLE[style_index()][i];
 
@@ -839,10 +859,11 @@ module main() {
 
 main();
 
-echo(str("LAMELLA  seed ", active_seed, "  (", seed_mode, ")"));
+echo(str("LAMELLA  seed ", active_seed, "  style ", active_style(),
+         "  (", seed_mode, ")"));
 if (seed_mode == "Surprise me (new every render)")
-    echo(str("LAMELLA  >> To keep this design, set seed_mode to Seeded and seed to ",
-             active_seed, " <<"));
+    echo(str("LAMELLA  >> To keep this design: seed_mode = Seeded, seed = ",
+             active_seed, ", style = ", active_style(), " <<"));
 // Each export re-rolls, so tiles exported separately in Surprise mode would
 // each get a different field and would not meet at the seams.
 if (seed_mode == "Surprise me (new every render)" && (tile_cols > 1 || tile_rows > 1))

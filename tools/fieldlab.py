@@ -165,8 +165,18 @@ class FieldSpec:
             if getattr(self, key, None) is None:
                 setattr(self, key, value)
 
+    @property
+    def resolved_style(self):
+        """'Surprise me' resolves through the seed, exactly as the .scad does."""
+        if self.style != "Surprise me":
+            return self.style
+        names = list(STYLE_TABLE)
+        i = min(len(names) - 1,
+                int(math.floor(float(hash01(self.seed * 23 + 97, self.seed)) * len(names))))
+        return names[i]
+
     def sp(self, name):
-        return STYLE_TABLE[self.style][COLS.index(name)]
+        return STYLE_TABLE[self.resolved_style][COLS.index(name)]
 
     @property
     def short_side(self):  return min(self.artwork_width, self.artwork_height)

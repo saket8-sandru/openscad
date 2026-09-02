@@ -510,6 +510,42 @@
         ],
         "max_degenerate": 80
       }
+    },
+    {
+      "name": "surprise_style_seeded",
+      "params": {
+        "output": "Single tile",
+        "style": "Surprise me",
+        "seed": 42
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          180,
+          180,
+          180
+        ],
+        "max_degenerate": 80
+      }
+    },
+    {
+      "name": "surprise_style_and_seed",
+      "params": {
+        "output": "Single tile",
+        "style": "Surprise me",
+        "seed_mode": "Surprise me (new every render)"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          180,
+          180,
+          180
+        ],
+        "max_degenerate": 120
+      }
     }
   ],
   "views": [

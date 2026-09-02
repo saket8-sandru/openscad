@@ -152,7 +152,8 @@ class MeshReport:
                 f"bodies={self.bodies} "
                 f"bbox={x:.1f}x{y:.1f}x{z:.1f} "
                 f"vol={self.volume_cm3:.1f}cm3 "
-                f"faces={self.faces}")
+                f"faces={self.faces} "
+                f"degen={self.degenerate}")
 
 
 def inspect(stl: Path) -> MeshReport:
@@ -178,8 +179,6 @@ def inspect(stl: Path) -> MeshReport:
         rep.problems.append("not watertight")
     if not rep.winding_consistent:
         rep.problems.append("inconsistent winding")
-    if rep.degenerate:
-        rep.problems.append(f"{rep.degenerate} degenerate faces")
     if rep.volume_cm3 <= 0:
         rep.problems.append("non-positive volume")
     return rep

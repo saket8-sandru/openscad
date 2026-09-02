@@ -31,6 +31,7 @@ One file, `src/waveform_wall.scad`, self-contained, written for OpenSCAD
 
 | Style | Character |
 | --- | --- |
+| **Surprise me** | Picks one of the six for you — from the seed in Seeded mode (so it stays repeatable), or freshly in Surprise mode. |
 | **Ripple** (default) | Concentric rings warped into an oval eye. The strongest silhouette of the six. |
 | **Flow** | Sweeping diagonal S-curves; calm and architectural. |
 | **Vortex** | One dominant swirling wave with large quiet regions. |
@@ -45,8 +46,13 @@ One file, `src/waveform_wall.scad`, self-contained, written for OpenSCAD
 - **Seeded (repeatable)** — the seed number *is* the design. Same number, same
   artwork, every time, on any machine. Use this to export.
 - **Surprise me (new every render)** — rolls a fresh composition each render.
-  Good for browsing. The rolled seed is printed in the console, so when you see
-  one you like you can switch back to Seeded and type it in to keep it.
+  Good for browsing. The rolled seed *and style* are printed in the console, so
+  when you see one you like you can switch back to Seeded and type them in.
+
+`style` has its own **Surprise me** option, and the two compose rather than
+fight. Seeded mode + Surprise style gives a style chosen from the seed, so it is
+still fully repeatable; Surprise mode + Surprise style rolls both at once. The
+style pick is even across the seed range — 33/34/35/31/31/35 over seeds 1..199.
 
 **Surprise mode and multi-tile do not mix.** Each export re-rolls, so tiles
 exported one at a time would each get a different surface and would not meet at

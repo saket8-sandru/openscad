@@ -104,6 +104,10 @@ def main() -> int:
         cases.append(({"style": style}, FieldSpec(style=style)))
     for seed in (1, 42, 137):
         cases.append(({"seed": seed}, FieldSpec(seed=seed)))
+    # "Surprise me" must resolve to the same style on both sides.
+    for seed in (5, 42):
+        cases.append(({"style": "Surprise me", "seed": seed},
+                      FieldSpec(style="Surprise me", seed=seed)))
     cases += [
         ({"intensity": 1.45}, FieldSpec(intensity=1.45)),
         ({"flow_angle": 200}, FieldSpec(flow_angle=200)),
