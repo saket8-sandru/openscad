@@ -29,31 +29,31 @@ python3 tools/overhangcheck.py projects/waveform-wall/exports/*.stl
 
 ```
 == LAMELLA waveform wall panel :: 25 cases ==
-  default_tile                 PASS  WT bodies=1 bbox=170.0x22.1x170.0 vol=317.2cm3 faces=9632  [14.8s]
-  default_assembled            PASS  WT bodies=1 bbox=170.0x22.1x170.0 vol=317.2cm3 faces=9632  [14.8s]
-  multitile_2x2_assembled      PASS  WT bodies=1 bbox=300.0x22.2x300.0 vol=984.9cm3 faces=31020  [60.3s]
-  multitile_2x2_corner         PASS  WT bodies=1 bbox=150.0x21.2x150.0 vol=258.6cm3 faces=7912  [11.2s]
-  multitile_3x1_middle         PASS  WT bodies=1 bbox=160.0x22.4x160.0 vol=271.9cm3 faces=8836  [13.7s]
-  style_flow                   PASS  WT bodies=1 bbox=170.0x22.4x170.0 vol=321.2cm3 faces=9644  [14.7s]
-  style_vortex                 PASS  WT bodies=1 bbox=170.0x22.4x170.0 vol=345.0cm3 faces=9628  [14.3s]
-  style_dune                   PASS  WT bodies=1 bbox=170.0x22.4x170.0 vol=319.5cm3 faces=9644  [14.1s]
-  style_liquid                 PASS  WT bodies=1 bbox=170.0x22.4x170.0 vol=328.0cm3 faces=9628  [14.8s]
-  style_interference           PASS  WT bodies=1 bbox=170.0x22.4x170.0 vol=328.0cm3 faces=9636  [14.4s]
-  style_ripple                 PASS  WT bodies=1 bbox=170.0x22.1x170.0 vol=317.2cm3 faces=9632  [14.8s]
-  min_everything               PASS  WT bodies=1 bbox=80.0x9.4x80.0 vol=37.5cm3 faces=2668  [4.2s]
-  max_relief_deep              PASS  WT bodies=1 bbox=170.0x61.5x170.0 vol=801.3cm3 faces=9636  [14.7s]
-  coarse_nozzle_thick_wall     PASS  WT bodies=1 bbox=170.0x24.8x170.0 vol=333.2cm3 faces=4288  [5.2s]
-  fine_pitch_smooth            PASS  WT bodies=1 bbox=170.0x22.3x170.0 vol=356.1cm3 faces=37564  [89.7s]
+  default_tile                 PASS  WT bodies=1 bbox=170.0x22.1x170.0 vol=317.2cm3 faces=9632  [15.5s]
+  default_assembled            PASS  WT bodies=1 bbox=170.0x22.1x170.0 vol=317.2cm3 faces=9632  [14.9s]
+  multitile_2x2_assembled      PASS  WT bodies=1 bbox=300.0x22.2x300.0 vol=984.9cm3 faces=31020  [58.7s]
+  multitile_2x2_corner         PASS  WT bodies=1 bbox=150.0x21.2x150.0 vol=258.6cm3 faces=7912  [12.5s]
+  multitile_3x1_middle         PASS  WT bodies=1 bbox=160.0x22.4x160.0 vol=271.9cm3 faces=8836  [13.3s]
+  style_flow                   PASS  WT bodies=1 bbox=170.0x22.4x170.0 vol=321.2cm3 faces=9644  [14.6s]
+  style_vortex                 PASS  WT bodies=1 bbox=170.0x22.4x170.0 vol=345.0cm3 faces=9628  [14.1s]
+  style_dune                   PASS  WT bodies=1 bbox=170.0x22.4x170.0 vol=319.5cm3 faces=9644  [14.5s]
+  style_liquid                 PASS  WT bodies=1 bbox=170.0x22.4x170.0 vol=328.0cm3 faces=9628  [14.4s]
+  style_interference           PASS  WT bodies=1 bbox=170.0x22.4x170.0 vol=328.0cm3 faces=9636  [13.8s]
+  style_ripple                 PASS  WT bodies=1 bbox=170.0x22.1x170.0 vol=317.2cm3 faces=9632  [14.6s]
+  min_everything               PASS  WT bodies=1 bbox=80.0x9.4x80.0 vol=37.5cm3 faces=2668  [4.1s]
+  max_relief_deep              PASS  WT bodies=1 bbox=170.0x61.5x170.0 vol=801.3cm3 faces=9636  [13.9s]
+  coarse_nozzle_thick_wall     PASS  WT bodies=1 bbox=170.0x24.8x170.0 vol=333.2cm3 faces=4288  [4.8s]
+  fine_pitch_smooth            PASS  WT bodies=1 bbox=170.0x22.3x170.0 vol=356.1cm3 faces=37564  [87.7s]
   big_artwork_one_tile         PASS  WT bodies=1 bbox=171.4x20.5x150.0 vol=322.9cm3 faces=8760  [19.3s]
-  wide_aspect_tile             PASS  WT bodies=1 bbox=140.0x20.7x100.0 vol=156.8cm3 faces=5260  [7.6s]
-  printer_x1_large_tile        PASS  WT bodies=1 bbox=230.0x22.3x230.0 vol=612.9cm3 faces=17596  [33.1s]
+  wide_aspect_tile             PASS  WT bodies=1 bbox=140.0x20.7x100.0 vol=156.8cm3 faces=5260  [7.8s]
+  printer_x1_large_tile        PASS  WT bodies=1 bbox=230.0x22.3x230.0 vol=612.9cm3 faces=17596  [33.2s]
   single_tile_no_joints_no_mount PASS  WT bodies=1 bbox=160.0x22.1x160.0 vol=281.1cm3 faces=8244  [10.1s]
-  loose_key_fit                PASS  WT bodies=1 bbox=170.0x22.1x170.0 vol=317.2cm3 faces=9632  [14.4s]
-  advanced_extremes            PASS  WT bodies=1 bbox=170.0x21.4x170.0 vol=261.5cm3 faces=9644  [14.5s]
-  advanced_terraced            PASS  WT bodies=1 bbox=170.0x22.4x170.0 vol=318.7cm3 faces=5068  [7.9s]
-  zero_swirl                   PASS  WT bodies=1 bbox=170.0x22.1x170.0 vol=323.2cm3 faces=9640  [15.2s]
+  loose_key_fit                PASS  WT bodies=1 bbox=170.0x22.1x170.0 vol=317.2cm3 faces=9632  [16.4s]
+  advanced_extremes            PASS  WT bodies=1 bbox=170.0x21.4x170.0 vol=261.5cm3 faces=9644  [14.3s]
+  advanced_terraced            PASS  WT bodies=1 bbox=170.0x22.4x170.0 vol=318.7cm3 faces=5068  [7.5s]
+  zero_swirl                   PASS  WT bodies=1 bbox=170.0x22.1x170.0 vol=323.2cm3 faces=9640  [14.3s]
   joining_keys                 PASS  WT bodies=1 bbox=26.0x13.0x1.6 vol=0.4cm3 faces=20  [0.1s]
-  fit_coupon                   PASS  WT bodies=3 bbox=98.6x21.6x46.0 vol=26.3cm3 faces=2692  [2.8s]
+  fit_coupon                   PASS  WT bodies=3 bbox=98.6x21.6x46.0 vol=26.3cm3 faces=2692  [2.9s]
 == 25/25 passed ==
 ```
 
@@ -80,15 +80,43 @@ affordable, so it has to compute the same numbers as the shipped `.scad`.
 `crosscheck.py` drives OpenSCAD's echo export over ten probe points and
 compares.
 
-**15/15 configurations agree** — the default, all six styles, three seeds,
-`intensity`, `flow_angle`, `swirl_scale` + `extra_vortices`, `relief_gamma`,
-and a non-square artwork. Worst absolute difference across all of them is
-~1e-5 on both the raw field and the normalised field, which is OpenSCAD's
-six-significant-digit echo precision rather than a real disagreement.
+**15/15 configurations agree at a 2e-5 tolerance** — the default, all six
+styles, three seeds, `intensity`, `flow_angle`, `swirl_scale` +
+`extra_vortices`, `relief_gamma`, and a non-square artwork. Worst observed
+difference is 1.25e-5 on the raw field and 4.2e-6 on the normalised field.
 
-This check has already earned its place: it caught a silent divergence the
-moment two style-table rows were edited in the `.scad` but not in Python. The
-table is now parsed out of the `.scad`, so that particular drift cannot recur.
+That tolerance is the **measurement floor, not a comfort margin**: OpenSCAD's
+echo prints six significant figures, so a field value of order 1 can only be
+read back to about 5e-6.
+
+The check has earned its place three times over:
+
+1. It caught a silent divergence the moment two style-table rows were edited in
+   the `.scad` but not in Python. The table is now parsed out of the `.scad`.
+2. It caught the same class of drift again when the `.scad` default artwork
+   changed to 170 x 170 while Python still assumed 400 x 400. Customizer
+   defaults are now parsed out of the `.scad` too, so neither can drift.
+3. It exposed a genuine reproducibility defect in the generator itself, below.
+
+### Angle reduction (a real defect, not a harness artefact)
+
+Agreement was stuck at 1.3e-3 — a hundred times worse than echo precision.
+Probing the internals isolated it: `hash01(43, 137)` returned 0.227067 in
+OpenSCAD and 0.227047 in NumPy.
+
+The hash multiplies `sin`'s result by ~44000, so any difference between two
+`sin` implementations is amplified by the same factor. With seeds reaching
+angles above 11000 degrees, the two libraries' range reduction differed by
+around 5e-10 — which the hash turned into 2e-5 in its output, and which then
+moved field feature positions by roughly 0.01 mm.
+
+That is physically negligible, but it means **the generator was not reproducible
+across OpenSCAD builds or platforms** — a real problem for a model whose whole
+value is that a given seed makes a given artwork.
+
+Fixed by reducing every angle into [0, 360) explicitly, on both sides, before
+calling `sin`. Agreement improved from 1.3e-3 to 1.25e-5 — a hundredfold, and
+now limited only by echo precision.
 
 ## Seam continuity
 
@@ -147,6 +175,7 @@ butting half-strips, it now bridges 13.20 mm — exactly the production conditio
 | Swirl/peak signs left to coin flips | Probing feature lists across seeds | Signs alternate deterministically; every seed gets a counter-rotating pair |
 | Feature positions clumped (two swirls 25 mm apart at seed 33, cancelling) | Probing feature lists across seeds | Placement moved to an R2 low-discrepancy sequence; separation at that seed went to 212 mm |
 | Duplicate `f_wave_amp` assignment | `--hardwarnings` during STL export | Removed. Previews do not set that flag, so they had been masking a hard export failure |
+| Generator not reproducible across platforms: `sin` range reduction differed, amplified ~44000x by the hash | Cross-check stuck at 1.3e-3 | Angles reduced into [0,360) explicitly before every `sin`; agreement improved 100x |
 | Fit coupon's key merged into the strip | Body count 1 instead of 2 | Offset now includes the bowtie's reach; key also rotated to lie flat on the same plate |
 | Fit coupon bridged 26.2 mm | Overhang check | Rebuilt as two butting half-strips |
 

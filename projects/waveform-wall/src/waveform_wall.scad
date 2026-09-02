@@ -189,10 +189,20 @@ function vsum2(v, i = 0) = i >= len(v) ? [0, 0] : v[i] + vsum2(v, i + 1);
 // Deterministic pseudo-random in [0,1). OpenSCAD has no RNG, and feature
 // placement must be reproducible from the seed alone -- including in the
 // NumPy reference implementation, which mirrors this exactly (degrees and all).
+// Angles are wrapped into [0,360) BEFORE sin() rather than left to the
+// library's own range reduction. The hash multiplies sin's result by ~44000,
+// so a difference of 1e-10 between two implementations becomes 1e-5 in the
+// output and shifts feature positions by measurable amounts. Reducing the
+// argument explicitly keeps sin's input small and identical everywhere, which
+// makes the generator reproducible across OpenSCAD builds and platforms --
+// and lets the NumPy reference agree to floating-point noise instead of to
+// three decimal places.
+function wrap360(a) = a - 360 * floor(a / 360);
+
 function hash01(n, s) =
-    let (a0 = sin(n * 12.9898 + s * 78.233 + 41.7) * 43758.5453,
+    let (a0 = sin(wrap360(n * 12.9898 + s * 78.233 + 41.7)) * 43758.5453,
          a  = a0 - floor(a0),
-         c0 = sin(a * 311.7 + n * 74.7 + s * 19.19) * 24634.6345)
+         c0 = sin(wrap360(a * 311.7 + n * 74.7 + s * 19.19)) * 24634.6345)
     c0 - floor(c0);
 
 function hash_range(n, s, lo, hi) = lo + (hi - lo) * hash01(n, s);
@@ -400,7 +410,7 @@ function harmonics(p) =
                  lam  = max(4, f_wave_len / pow(f_harm_ratio, j)),
                  amp  = pow(f_harm_fall, j),
                  proj = p[0] * cos(ang) + p[1] * sin(ang))
-            [ amp * sin(360 * proj / lam + j * 97.4), amp ] ],
+            [ amp * sin(wrap360(360 * proj / lam + j * 97.4)), amp ] ],
          num = vsum1([ for (t = terms) t[0] ]),
          den = vsum1([ for (t = terms) t[1] ]))
     num / max(den, 1e-9);
@@ -415,7 +425,7 @@ RADIAL_CENTRE = spread_point(0, 53, 0.28);
 
 function radial(p) =
     f_radial_amp <= 0 ? 0 :
-    sin(360 * norm(p - RADIAL_CENTRE) / f_radial_len);
+    sin(wrap360(360 * norm(p - RADIAL_CENTRE) / f_radial_len));
 
 function landscape(p) =
     len(PEAKS) == 0 ? 0 :
@@ -430,8 +440,8 @@ function landscape(p) =
 // ones rather than uniform activity edge to edge.
 function envelope(p) =
     f_envelope <= 0 ? 1 :
-    let (e = 0.5 + 0.5 * sin(360 * (p[0] * 0.37 + p[1] * 0.62)
-                             / (2.15 * short_side) + seed * 57.3))
+    let (e = 0.5 + 0.5 * sin(wrap360(360 * (p[0] * 0.37 + p[1] * 0.62)
+                                     / (2.15 * short_side) + seed * 57.3)))
     1 - f_envelope * (1 - e);
 
 function field_raw(x, z) =

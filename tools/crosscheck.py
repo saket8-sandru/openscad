@@ -90,7 +90,11 @@ def main() -> int:
     ap.add_argument("--scad", type=Path,
                     default=Path(__file__).resolve().parent.parent
                     / "projects/waveform-wall/src/waveform_wall.scad")
-    ap.add_argument("--tol", type=float, default=1e-4)
+    # 2e-5 is the measurement floor, not a comfort margin: OpenSCAD's echo
+    # prints six significant figures, so a field value of order 1 can only be
+    # read back to about 5e-6. Observed worst-case disagreement sits just under
+    # that. Before wrap360 was added to both implementations it was 1.3e-3.
+    ap.add_argument("--tol", type=float, default=2e-5)
     args = ap.parse_args()
 
     # Every style, plus seeds and modifiers, so a divergence anywhere in the

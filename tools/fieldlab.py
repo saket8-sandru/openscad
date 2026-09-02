@@ -43,10 +43,21 @@ def frac(x):
     return x - np.floor(x)
 
 
+def wrap360(a):
+    """Reduce an angle to [0,360) before sin(), exactly as the .scad does.
+
+    The hash multiplies sin's result by ~44000, so leaving range reduction to
+    each platform's library made OpenSCAD and NumPy disagree in the fifth
+    decimal and shifted feature positions by ~0.01mm. Reducing explicitly on
+    both sides removes the divergence at its source.
+    """
+    return a - 360 * np.floor(np.asarray(a, dtype=float) / 360)
+
+
 def hash01(n, s):
-    a0 = sind(n * 12.9898 + s * 78.233 + 41.7) * 43758.5453
+    a0 = sind(wrap360(n * 12.9898 + s * 78.233 + 41.7)) * 43758.5453
     a = frac(a0)
-    c0 = sind(a * 311.7 + n * 74.7 + s * 19.19) * 24634.6345
+    c0 = sind(wrap360(a * 311.7 + n * 74.7 + s * 19.19)) * 24634.6345
     return frac(c0)
 
 
@@ -91,25 +102,67 @@ def load_style_table(path=None):
 
 STYLE_TABLE = load_style_table()
 
+# Customizer defaults are parsed from the .scad for the same reason the style
+# table is: a hand-kept copy drifts. It already did once -- the .scad default
+# artwork changed to 170x170 while this file still said 400x400, and every
+# cross-check failed until the cause was found.
+_DEFAULT_RE = re.compile(r'^(\w+)\s*=\s*("[^"]*"|-?[\d.]+)\s*;', re.M)
+
+# Only these feed the field maths; the rest of the customizer is geometry.
+_DEFAULT_KEYS = {
+    "artwork_width": float, "artwork_height": float, "style": str,
+    "seed": float, "intensity": float, "flow_angle": float,
+    "fin_pitch": float, "printer": str, "custom_tile_max": float,
+    "extra_vortices": int, "swirl_scale": float, "detail_scale": float,
+    "relief_gamma": float, "terrace_steps": int,
+}
+
+
+def load_defaults(path=None):
+    """Read the customizer defaults out of the OpenSCAD source."""
+    text = pathlib.Path(path or SCAD_PATH).read_text()
+    head = text.split("// CONSTANTS", 1)[0]      # customizer block only
+    out = {}
+    for name, raw in _DEFAULT_RE.findall(head):
+        cast = _DEFAULT_KEYS.get(name)
+        if cast is None:
+            continue
+        out[name] = raw.strip('"') if cast is str else cast(float(raw))
+    missing = set(_DEFAULT_KEYS) - set(out)
+    if missing:
+        raise ValueError(f"defaults not found in the .scad: {sorted(missing)}")
+    return out
+
+
+DEFAULTS = load_defaults()
+
 
 @dataclass
 class FieldSpec:
-    artwork_width: float = 400.0
-    artwork_height: float = 400.0
-    style: str = "Flow"
-    seed: float = 7.0
-    intensity: float = 1.0
-    flow_angle: float = 25.0
-    extra_vortices: int = 0
-    swirl_scale: float = 1.0
-    detail_scale: float = 1.0
-    relief_gamma: float = 1.0
-    # Needed because the anti-alias guard ties field detail to the fin pitch,
-    # and the pitch falls out of the tiling. Mirrors the .scad derivation.
-    printer: str = "A1 mini (180 x 180)"
-    custom_tile_max: float = 200.0
-    fin_pitch: float = 8.0
-    terrace_steps: int = 0
+    """A configuration of the generator. Any field left None takes the value
+    the .scad itself declares, so the two cannot drift apart."""
+
+    artwork_width: float = None
+    artwork_height: float = None
+    style: str = None
+    seed: float = None
+    intensity: float = None
+    flow_angle: float = None
+    extra_vortices: int = None
+    swirl_scale: float = None
+    detail_scale: float = None
+    relief_gamma: float = None
+    # printer/custom_tile_max/fin_pitch are here because the anti-alias guard
+    # ties field detail to the fin pitch, and the pitch falls out of the tiling.
+    printer: str = None
+    custom_tile_max: float = None
+    fin_pitch: float = None
+    terrace_steps: int = None
+
+    def __post_init__(self):
+        for key, value in DEFAULTS.items():
+            if getattr(self, key, None) is None:
+                setattr(self, key, value)
 
     def sp(self, name):
         return STYLE_TABLE[self.style][COLS.index(name)]
@@ -269,7 +322,7 @@ def harmonics(spec, x, z):
         lam = max(4.0, spec.wave_len / (spec.harm_ratio ** j))
         amp = spec.harm_fall ** j
         proj = x * cosd(ang) + z * sind(ang)
-        num = num + amp * sind(360 * proj / lam + j * 97.4)
+        num = num + amp * sind(wrap360(360 * proj / lam + j * 97.4))
         den += amp
     return num / max(den, 1e-9)
 
@@ -280,7 +333,7 @@ def radial(spec, x, z):
         return np.zeros_like(x, dtype=float)
     cx, cz = spread_point(spec, 0, 53, 0.28)
     r = np.sqrt((x - cx) ** 2 + (z - cz) ** 2)
-    return sind(360 * r / spec.radial_len)
+    return sind(wrap360(360 * r / spec.radial_len))
 
 
 def landscape(spec, x, z, ps):
@@ -297,8 +350,8 @@ def landscape(spec, x, z, ps):
 def envelope(spec, x, z):
     if spec.envelope_s <= 0:
         return np.ones_like(x, dtype=float)
-    e = 0.5 + 0.5 * sind(360 * (x * 0.37 + z * 0.62)
-                         / (2.15 * spec.short_side) + spec.seed * 57.3)
+    e = 0.5 + 0.5 * sind(wrap360(360 * (x * 0.37 + z * 0.62)
+                                 / (2.15 * spec.short_side) + spec.seed * 57.3))
     return 1 - spec.envelope_s * (1 - e)
 
 
