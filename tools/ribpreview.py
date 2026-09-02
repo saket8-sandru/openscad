@@ -26,7 +26,7 @@ from fieldlab import FieldSpec
 
 def rib_positions(spec: FieldSpec, rib_count: int, rib_thickness: float):
     """Rib centre lines, evenly pitched across the artwork width."""
-    pitch = spec.width / rib_count
+    pitch = spec.artwork_width / rib_count
     centres = (np.arange(rib_count) + 0.5) * pitch
     return centres, pitch
 
@@ -39,9 +39,10 @@ def sample_ribs(spec: FieldSpec, rib_count: int, rows: int) -> np.ndarray:
     rather than an idealised continuous surface.
     """
     centres, _ = rib_positions(spec, rib_count, 0.0)
-    z = np.linspace(0.0, spec.height, rows)
+    z = np.linspace(0.0, spec.artwork_height, rows)
     xx, zz = np.meshgrid(centres, z)
-    return fieldlab.field(spec, xx, zz)
+    # Normalisation range is measured once, exactly as the .scad does it.
+    return fieldlab.field(spec, xx, zz, lohi=fieldlab.norm_range(spec))
 
 
 def render(spec: FieldSpec, rib_count: int = 64, rib_thickness: float = 2.6,
@@ -59,10 +60,10 @@ def render(spec: FieldSpec, rib_count: int = 64, rib_thickness: float = 2.6,
     depth_mm = depth01 * max_depth
 
     pitch_px = px_w / rib_count
-    thick_px = max(1.0, pitch_px * (rib_thickness / (spec.width / rib_count)))
+    thick_px = max(1.0, pitch_px * (rib_thickness / (spec.artwork_width / rib_count)))
     tan_view = math.tan(math.radians(view_angle))
     # mm of depth -> px of revealed side wall
-    mm_to_px = (px_w / spec.width) * tan_view
+    mm_to_px = (px_w / spec.artwork_width) * tan_view
 
     img = np.zeros((rows, px_w, 3), dtype=np.float32)
 

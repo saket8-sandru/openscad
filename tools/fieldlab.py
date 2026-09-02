@@ -1,200 +1,219 @@
 #!/usr/bin/env python3
 """
-fieldlab -- fast exploration of the scalar depth field behind the rib panel.
+fieldlab -- NumPy mirror of the OpenSCAD field engine in
+projects/waveform-wall/src/waveform_wall.scad.
 
-The OpenSCAD generator is the product; this is the design instrument. Rendering
-a candidate field in OpenSCAD costs tens of seconds, which is far too slow to
-iterate on the *look*. Here the same field maths runs in NumPy and renders in
-well under a second, so architectures can be compared honestly before any of it
-is committed to .scad.
+The .scad file is the product and the reference. This module exists to make
+design iteration fast: evaluating a field here takes milliseconds where a full
+OpenSCAD render takes minutes. That is only worth anything if the two agree, so
+every quirk of the OpenSCAD version is reproduced here -- including that
+OpenSCAD's sin()/cos() take DEGREES, which the hash and every wave term depend
+on. tools/crosscheck.py proves the agreement.
 
-The maths in `field()` is the reference implementation. The OpenSCAD port must
-agree with it numerically -- tools/crosscheck.py proves that it does.
-
-Coordinates are global artwork millimetres: x across the panel, z up it. Tiling
-never rebases them, which is what keeps the field continuous across seams.
+Change the .scad first, then mirror it here.
 """
 
 from __future__ import annotations
 
-import math
-from dataclasses import dataclass, field as dc_field
+from dataclasses import dataclass
 
 import numpy as np
 
-TAU = 2.0 * math.pi
+R2_A1 = 0.7548776662   # 1 / plastic number
+R2_A2 = 0.5698402910   # 1 / plastic number squared
+NORM_N = 26
 
 
-# --------------------------------------------------------------------------
-# deterministic pseudo-randomness
-# --------------------------------------------------------------------------
-# Feature placement must be reproducible from a seed alone, and must produce
-# identical numbers in OpenSCAD, which has no RNG. A hash of the index is the
-# portable way to do that: fract(sin(n) * k) is exactly reproducible in both
-# languages using only functions OpenSCAD 2021.01 has.
-
-def hash01(n: float, seed: float) -> float:
-    """Deterministic pseudo-random in [0,1). Portable to OpenSCAD."""
-    v = math.sin((n + 1.0) * 127.1 + seed * 311.7) * 43758.5453123
-    return v - math.floor(v)
+def sind(x):
+    """OpenSCAD sin(): argument in degrees."""
+    return np.sin(np.radians(x))
 
 
-def hash_range(n: float, seed: float, lo: float, hi: float) -> float:
-    return lo + (hi - lo) * hash01(n, seed)
+def cosd(x):
+    return np.cos(np.radians(x))
 
 
-# --------------------------------------------------------------------------
-# field configuration
-# --------------------------------------------------------------------------
+def frac(x):
+    return x - np.floor(x)
+
+
+def hash01(n, s):
+    a0 = sind(n * 12.9898 + s * 78.233 + 41.7) * 43758.5453
+    a = frac(a0)
+    c0 = sind(a * 311.7 + n * 74.7 + s * 19.19) * 24634.6345
+    return frac(c0)
+
+
+def hash_range(n, s, lo, hi):
+    return lo + (hi - lo) * hash01(n, s)
+
+
+def r2_frac(k, offset, alpha):
+    return frac(offset + (k + 1) * alpha)
+
+
+COLS = ("wave_count", "wave_amp", "wave_len", "harm_ratio", "harm_fall",
+        "dir_spread", "vortex_n", "vortex_str", "vortex_rad", "peak_n",
+        "peak_str", "valley_str", "feature", "envelope", "terrace", "gamma")
+
+STYLE_TABLE = {
+    "Flow":         (3, 1.00, 0.55, 1.9, 0.55, 34, 2, 1.00, 0.38, 3, 1.00, 0.80, 0.42, 0.55, 0, 1.00),
+    "Vortex":       (2, 0.75, 0.70, 2.1, 0.45, 28, 3, 1.60, 0.34, 2, 0.70, 0.90, 0.38, 0.35, 0, 0.95),
+    "Dune":         (2, 0.90, 0.90, 2.4, 0.35, 14, 1, 0.55, 0.50, 4, 1.10, 0.60, 0.50, 0.65, 0, 1.15),
+    "Liquid":       (4, 1.00, 0.48, 1.7, 0.62, 41, 2, 1.15, 0.42, 3, 0.85, 0.85, 0.36, 0.45, 0, 0.90),
+    "Interference": (5, 1.20, 0.42, 1.5, 0.72, 47, 1, 0.45, 0.55, 2, 0.55, 0.55, 0.55, 0.25, 0, 1.00),
+    "Topographic":  (3, 0.85, 0.62, 2.0, 0.50, 31, 2, 0.95, 0.40, 4, 1.00, 0.80, 0.40, 0.50, 7, 1.00),
+}
+
 
 @dataclass
 class FieldSpec:
-    width: float = 400.0          # artwork width, mm
-    height: float = 400.0         # artwork height, mm
+    artwork_width: float = 400.0
+    artwork_height: float = 400.0
+    style: str = "Flow"
     seed: float = 7.0
+    intensity: float = 1.0
+    flow_angle: float = 25.0
+    extra_vortices: int = 0
+    swirl_scale: float = 1.0
+    detail_scale: float = 1.0
+    relief_gamma: float = 1.0
 
-    # --- vortex / swirl layer: macrostructure, the "eye" formations ---
-    vortex_count: int = 2
-    vortex_strength: float = 1.0   # ~radians of rotation at the core
-    vortex_radius: float = 0.38    # fraction of the panel's short side
+    def sp(self, name):
+        return STYLE_TABLE[self.style][COLS.index(name)]
 
-    # --- harmonic layer: optical movement and interference ---
-    wave_count: int = 3
-    wave_amplitude: float = 1.0
-    wave_length: float = 0.55      # fraction of short side, primary wavelength
-    harmonic_ratio: float = 1.9    # each extra wave is this much shorter
-    harmonic_falloff: float = 0.55 # and this much weaker
-    flow_direction: float = 25.0   # degrees
-    direction_spread: float = 34.0 # degrees between successive waves
-    phase: float = 0.0
+    @property
+    def short_side(self):  return min(self.artwork_width, self.artwork_height)
+    @property
+    def wave_count(self):  return max(1, int(self.sp("wave_count")))
+    @property
+    def wave_amp(self):    return self.sp("wave_amp") * self.intensity * self.detail_scale
+    @property
+    def wave_len(self):    return self.sp("wave_len") * self.short_side
+    @property
+    def harm_ratio(self):  return self.sp("harm_ratio")
+    @property
+    def harm_fall(self):   return self.sp("harm_fall")
+    @property
+    def dir_spread(self):  return self.sp("dir_spread")
+    @property
+    def vortex_n(self):    return max(0, int(self.sp("vortex_n")) + self.extra_vortices)
+    @property
+    def vortex_str(self):  return self.sp("vortex_str") * self.swirl_scale
+    @property
+    def vortex_rad(self):  return self.sp("vortex_rad") * self.short_side
+    @property
+    def peak_n(self):      return max(0, int(self.sp("peak_n")))
+    @property
+    def peak_str(self):    return self.sp("peak_str") * self.intensity
+    @property
+    def valley_str(self):  return self.sp("valley_str") * self.intensity
+    @property
+    def feature(self):     return self.sp("feature") * self.short_side
+    @property
+    def envelope_s(self):  return min(max(self.sp("envelope"), 0.0), 0.95)
+    @property
+    def terrace(self):     return self.sp("terrace")
+    @property
+    def gamma(self):       return min(max(self.sp("gamma") * self.relief_gamma, 0.4), 2.5)
 
-    # --- landscape layer: peaks, valleys, calm vs intense ---
-    peak_count: int = 3
-    peak_strength: float = 1.0
-    valley_strength: float = 0.8
-    feature_scale: float = 0.42    # fraction of short side
 
-    # --- shaping ---
-    envelope_strength: float = 0.55  # how strongly calm/intense regions vary
-    terrace_steps: int = 0           # 0 = smooth; >1 = topographic banding
-    gamma: float = 1.0               # <1 lifts valleys, >1 deepens them
+def spread_point(spec, k, seed_offset, inset):
+    ox = hash01(spec.seed * 3 + seed_offset, spec.seed)
+    oz = hash01(spec.seed * 5 + seed_offset, spec.seed)
+    return ((inset + (1 - 2 * inset) * r2_frac(k, ox, R2_A1)) * spec.artwork_width,
+            (inset + (1 - 2 * inset) * r2_frac(k, oz, R2_A2)) * spec.artwork_height)
 
 
-def _short_side(spec: FieldSpec) -> float:
-    return min(spec.width, spec.height)
+def vortices(spec):
+    if spec.vortex_n <= 0:
+        return []
+    flip = 1 if hash01(spec.seed * 7 + 3, spec.seed) < 0.5 else -1
+    return [(*spread_point(spec, k, 13, 0.22),
+             (1 if k % 2 == 0 else -1) * flip * spec.vortex_str,
+             spec.vortex_rad) for k in range(spec.vortex_n)]
 
 
-def _vortices(spec: FieldSpec):
-    """Placed pseudo-randomly but biased away from the extreme edges, so the
-    swirl cores land inside the artwork where they can actually be seen."""
+def peaks(spec):
+    if spec.peak_n <= 0:
+        return []
+    pflip = hash01(spec.seed * 11 + 5, spec.seed) < 0.5
     out = []
-    s = _short_side(spec)
-    for k in range(spec.vortex_count):
-        cx = hash_range(k * 3 + 0, spec.seed, 0.22, 0.78) * spec.width
-        cz = hash_range(k * 3 + 1, spec.seed, 0.22, 0.78) * spec.height
-        sign = 1.0 if hash01(k * 3 + 2, spec.seed) < 0.5 else -1.0
-        out.append((cx, cz, sign * spec.vortex_strength, spec.vortex_radius * s))
+    for m in range(spec.peak_n):
+        up = (m % 2 == 0) == pflip
+        amp = ((spec.peak_str if up else -spec.valley_str)
+               * hash_range(m * 4 + 43, spec.seed, 0.6, 1.0))
+        cx, cz = spread_point(spec, m, 29, 0.12)
+        out.append((cx, cz, amp,
+                    spec.feature * hash_range(m * 4 + 44, spec.seed, 0.7, 1.3)))
     return out
 
 
-def _peaks(spec: FieldSpec):
-    out = []
-    s = _short_side(spec)
-    for m in range(spec.peak_count):
-        cx = hash_range(m * 4 + 40, spec.seed, 0.12, 0.88) * spec.width
-        cz = hash_range(m * 4 + 41, spec.seed, 0.12, 0.88) * spec.height
-        # Alternate peaks and hollows so the surface has both, not just bumps.
-        up = hash01(m * 4 + 42, spec.seed) < 0.55
-        amp = spec.peak_strength if up else -spec.valley_strength
-        amp *= hash_range(m * 4 + 43, spec.seed, 0.6, 1.0)
-        sigma = spec.feature_scale * s * hash_range(m * 4 + 44, spec.seed, 0.7, 1.3)
-        out.append((cx, cz, amp, sigma))
-    return out
-
-
-def warp(spec: FieldSpec, x: np.ndarray, z: np.ndarray):
-    """Single-step tangential displacement -- the swirl layer.
-
-    Summing displacements evaluated at the *original* point (rather than
-    warping iteratively, vortex after vortex) keeps the map order-independent
-    and smooth, and stops strong vortices from folding space over itself.
-    """
-    dx = np.zeros_like(x)
-    dz = np.zeros_like(z)
-    for cx, cz, strength, radius in _vortices(spec):
+def warp(x, z, vs):
+    if not vs:
+        return x, z
+    dx = np.zeros_like(x, dtype=float)
+    dz = np.zeros_like(z, dtype=float)
+    for cx, cz, strength, radius in vs:
         ox, oz = x - cx, z - cz
-        r2 = ox * ox + oz * oz
-        fall = np.exp(-r2 / (2.0 * radius * radius))
-        # Tangential unit vector, times r, times falloff: near the core this is
-        # a rigid rotation by `strength` radians, decaying smoothly outward.
-        dx += strength * fall * (-oz)
-        dz += strength * fall * (ox)
+        fall = np.exp(-(ox * ox + oz * oz) / (2 * radius * radius))
+        dx = dx + strength * fall * (-oz)
+        dz = dz + strength * fall * ox
     return x + dx, z + dz
 
 
-def harmonics(spec: FieldSpec, x: np.ndarray, z: np.ndarray) -> np.ndarray:
-    """Sum of plane waves at related-but-not-identical angles.
-
-    Fanning the directions apart is what turns a plain corrugation into
-    interference: crests of successive waves cross rather than reinforce.
-    """
-    s = _short_side(spec)
-    total = np.zeros_like(x)
-    norm = 0.0
-    for j in range(max(1, spec.wave_count)):
-        angle = math.radians(spec.flow_direction + j * spec.direction_spread)
-        lam = spec.wave_length * s / (spec.harmonic_ratio ** j)
-        amp = spec.harmonic_falloff ** j
-        ux, uz = math.cos(angle), math.sin(angle)
-        proj = x * ux + z * uz
-        total += amp * np.sin(TAU * proj / lam + spec.phase + j * 1.7)
-        norm += amp
-    return total / max(norm, 1e-9)
+def harmonics(spec, x, z):
+    num = np.zeros_like(x, dtype=float)
+    den = 0.0
+    for j in range(spec.wave_count):
+        ang = spec.flow_angle + j * spec.dir_spread
+        lam = max(4.0, spec.wave_len / (spec.harm_ratio ** j))
+        amp = spec.harm_fall ** j
+        proj = x * cosd(ang) + z * sind(ang)
+        num = num + amp * sind(360 * proj / lam + j * 97.4)
+        den += amp
+    return num / max(den, 1e-9)
 
 
-def landscape(spec: FieldSpec, x: np.ndarray, z: np.ndarray) -> np.ndarray:
-    """Smooth blobs: the large peaks and hollows that set overall composition."""
-    total = np.zeros_like(x)
-    norm = 0.0
-    for cx, cz, amp, sigma in _peaks(spec):
-        r2 = (x - cx) ** 2 + (z - cz) ** 2
-        total += amp * np.exp(-r2 / (2.0 * sigma * sigma))
-        norm += abs(amp)
-    return total / max(norm, 1e-9)
+def landscape(spec, x, z, ps):
+    if not ps:
+        return np.zeros_like(x, dtype=float)
+    num = np.zeros_like(x, dtype=float)
+    den = 0.0
+    for cx, cz, amp, sigma in ps:
+        num = num + amp * np.exp(-((x - cx) ** 2 + (z - cz) ** 2) / (2 * sigma * sigma))
+        den += abs(amp)
+    return num / max(den, 1e-9)
 
 
-def field(spec: FieldSpec, x: np.ndarray, z: np.ndarray) -> np.ndarray:
-    """The composed field, normalised to roughly [0,1]."""
-    wx, wz = warp(spec, x, z)
+def envelope(spec, x, z):
+    if spec.envelope_s <= 0:
+        return np.ones_like(x, dtype=float)
+    e = 0.5 + 0.5 * sind(360 * (x * 0.37 + z * 0.62)
+                         / (2.15 * spec.short_side) + spec.seed * 57.3)
+    return 1 - spec.envelope_s * (1 - e)
 
-    # Harmonics read the warped space, so the swirl bends the wave crests into
-    # S-curves and eyes. The landscape reads unwarped space, so the large
-    # composition stays put instead of being smeared by the vortices.
-    fh = harmonics(spec, wx, wz) * spec.wave_amplitude
-    fl = landscape(spec, x, z)
 
-    combined = fh + fl
+def field_raw(spec, x, z):
+    x = np.asarray(x, dtype=float)
+    z = np.asarray(z, dtype=float)
+    wx, wz = warp(x, z, vortices(spec))
+    return (harmonics(spec, wx, wz) * spec.wave_amp
+            + landscape(spec, x, z, peaks(spec))) * envelope(spec, x, z)
 
-    # Envelope: modulate amplitude with a slow function so the panel has calm
-    # regions as well as busy ones, instead of uniform activity everywhere.
-    if spec.envelope_strength > 0:
-        s = _short_side(spec)
-        env = 0.5 + 0.5 * np.sin(TAU * (x * 0.37 + z * 0.62) / (2.15 * s)
-                                 + spec.seed)
-        env = 1.0 - spec.envelope_strength * (1.0 - env)
-        combined = combined * env
 
-    # Normalise to [0,1] using the actual observed range, so max_depth means
-    # what it says regardless of how the layers happened to add up.
-    lo, hi = combined.min(), combined.max()
-    out = (combined - lo) / max(hi - lo, 1e-9)
+def norm_range(spec):
+    """Field extremes measured on the same coarse grid the .scad uses."""
+    i = np.arange(NORM_N + 1) / NORM_N
+    xx, zz = np.meshgrid(i * spec.artwork_width, i * spec.artwork_height, indexing="ij")
+    v = field_raw(spec, xx, zz)
+    return float(v.min()), float(v.max())
 
-    if spec.gamma != 1.0:
-        out = np.power(out, spec.gamma)
 
-    if spec.terrace_steps and spec.terrace_steps > 1:
-        n = spec.terrace_steps
-        out = np.floor(out * n) / (n - 1)
-        out = np.clip(out, 0.0, 1.0)
-
-    return out
+def field(spec, x, z, lohi=None):
+    lo, hi = lohi if lohi is not None else norm_range(spec)
+    t = np.clip((field_raw(spec, x, z) - lo) / max(hi - lo, 1e-9), 0, 1)
+    g = np.power(t, spec.gamma)
+    if spec.terrace > 1:
+        g = np.clip(np.floor(g * spec.terrace) / (spec.terrace - 1), 0, 1)
+    return np.clip(g, 0, 1)
