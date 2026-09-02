@@ -24,19 +24,19 @@
 /* [Artwork] */
 
 // Overall artwork width in mm (tiled automatically if wider than the bed).
-artwork_width = 400;   // [80:10:1600]
+artwork_width = 300;   // [80:10:1600]
 
 // Overall artwork height in mm.
-artwork_height = 400;  // [80:10:1600]
+artwork_height = 300;  // [80:10:1600]
 
 // How far the tallest fins stand off the backing. The single biggest driver of how dramatic the piece looks.
-max_relief = 26;       // [8:1:60]
+max_relief = 20;       // [8:1:60]
 
 
 /* [Style] */
 
 // Overall character of the surface.
-style = "Flow"; // [Flow, Vortex, Dune, Liquid, Interference, Topographic]
+style = "Ripple"; // [Flow, Vortex, Dune, Liquid, Interference, Ripple]
 
 // Changes the composition completely while keeping the chosen style. Every value is a different artwork.
 seed = 7;       // [1:1:199]
@@ -114,6 +114,12 @@ detail_scale = 1.0;      // [0.0:0.05:2.0]
 // Lifts valleys (below 1) or deepens them (above 1).
 relief_gamma = 1.0;      // [0.60:0.05:1.80]
 
+// Quantises the relief into flat contour bands. 0 is off. Terracing fights the
+// fins -- the surface is already quantised across the panel, and quantising it
+// in depth too reads as digital error rather than contours unless the fins are
+// coarse. Kept as an option, deliberately not used by any preset.
+terrace_steps = 0;       // [0:1:10]
+
 
 // =====================================================================
 // CONSTANTS
@@ -132,25 +138,26 @@ I_WAVE_LEN     = 2;   // fraction of the artwork's short side
 I_HARM_RATIO   = 3;   // each successive wave is this much shorter
 I_HARM_FALLOFF = 4;   // ...and this much weaker
 I_DIR_SPREAD   = 5;   // degrees between successive wave directions
-I_VORTEX_N     = 6;
-I_VORTEX_STR   = 7;
-I_VORTEX_RAD   = 8;   // fraction of short side
-I_PEAK_N       = 9;
-I_PEAK_STR     = 10;
-I_VALLEY_STR   = 11;
-I_FEATURE      = 12;  // fraction of short side
-I_ENVELOPE     = 13;
-I_TERRACE      = 14;  // 0 = smooth, >1 = banded
-I_GAMMA        = 15;
+I_RADIAL_AMP   = 6;   // concentric ring component
+I_RADIAL_LEN   = 7;   // ring spacing, fraction of short side
+I_VORTEX_N     = 8;
+I_VORTEX_STR   = 9;
+I_VORTEX_RAD   = 10;  // fraction of short side
+I_PEAK_N       = 11;
+I_PEAK_STR     = 12;
+I_VALLEY_STR   = 13;
+I_FEATURE      = 14;  // fraction of short side
+I_ENVELOPE     = 15;
+I_GAMMA        = 16;
 
-//                    wav amp  len  rat  fal  spr  vn  vst  vrad pn  pst  vst  feat env  ter gam
+//                    wav  amp   len  rat   fal  spr  rAmp rLen  vn  vstr vrad  pn  pstr vstr feat  env  gam
 STYLE_TABLE = [
-/* Flow         */ [  3, 1.00, 0.55, 1.9, 0.55, 34,  2, 1.00, 0.38, 3, 1.00, 0.80, 0.42, 0.55, 0, 1.00 ],
-/* Vortex       */ [  2, 0.75, 0.70, 2.1, 0.45, 28,  3, 1.60, 0.34, 2, 0.70, 0.90, 0.38, 0.35, 0, 0.95 ],
-/* Dune         */ [  2, 0.90, 0.90, 2.4, 0.35, 14,  1, 0.55, 0.50, 4, 1.10, 0.60, 0.50, 0.65, 0, 1.15 ],
-/* Liquid       */ [  4, 1.00, 0.48, 1.7, 0.62, 41,  2, 1.15, 0.42, 3, 0.85, 0.85, 0.36, 0.45, 0, 0.90 ],
-/* Interference */ [  5, 1.20, 0.42, 1.5, 0.72, 47,  1, 0.45, 0.55, 2, 0.55, 0.55, 0.55, 0.25, 0, 1.00 ],
-/* Topographic  */ [  3, 0.85, 0.62, 2.0, 0.50, 31,  2, 0.95, 0.40, 4, 1.00, 0.80, 0.40, 0.50, 7, 1.00 ],
+/* Flow         */ [  3, 1.00, 0.55, 1.9, 0.55, 34, 0.00, 0.40,  2, 1.00, 0.38,  3, 1.00, 0.80, 0.42, 0.55, 1.00 ],
+/* Vortex       */ [  2, 0.75, 0.70, 2.1, 0.45, 28, 0.00, 0.40,  3, 1.25, 0.34,  2, 0.70, 0.90, 0.38, 0.35, 0.95 ],
+/* Dune         */ [  3, 0.95, 0.68, 2.2, 0.42, 22, 0.00, 0.40,  2, 0.85, 0.44,  4, 1.10, 0.95, 0.44, 0.40, 1.10 ],
+/* Liquid       */ [  4, 1.00, 0.48, 1.7, 0.62, 41, 0.00, 0.40,  2, 1.15, 0.42,  3, 0.85, 0.85, 0.36, 0.45, 0.90 ],
+/* Interference */ [  5, 1.20, 0.42, 1.5, 0.72, 47, 0.00, 0.40,  1, 0.45, 0.55,  2, 0.55, 0.55, 0.55, 0.25, 1.00 ],
+/* Ripple       */ [  2, 0.38, 0.80, 2.0, 0.50, 30, 1.00, 0.24,  1, 0.70, 0.45,  3, 0.80, 0.80, 0.42, 0.30, 1.00 ],
 ];
 
 function style_index() =
@@ -159,7 +166,7 @@ function style_index() =
     : style == "Dune"         ? 2
     : style == "Liquid"       ? 3
     : style == "Interference" ? 4
-    : style == "Topographic"  ? 5
+    : style == "Ripple"       ? 5
     :                           0;
 
 function sp(i) = STYLE_TABLE[style_index()][i];
@@ -254,12 +261,12 @@ relief_span = max(0.5, max_relief - min_relief);
 z_samples = clamp(round(tile_h / max(0.4, fin_smoothness)), 24, 400);
 
 // --- field ---------------------------------------------------------------
-f_wave_count = max(1, sp(I_WAVE_COUNT));
 f_wave_amp   = sp(I_WAVE_AMP) * intensity * detail_scale;
 f_wave_len   = sp(I_WAVE_LEN) * short_side;
 f_harm_ratio = sp(I_HARM_RATIO);
 f_harm_fall  = sp(I_HARM_FALLOFF);
 f_dir_spread = sp(I_DIR_SPREAD);
+f_radial_amp = sp(I_RADIAL_AMP) * intensity * detail_scale;
 
 f_vortex_n   = max(0, sp(I_VORTEX_N) + extra_vortices);
 f_vortex_str = sp(I_VORTEX_STR) * swirl_scale;
@@ -271,7 +278,7 @@ f_valley_str = sp(I_VALLEY_STR) * intensity;
 f_feature    = sp(I_FEATURE) * short_side;
 
 f_envelope   = clamp(sp(I_ENVELOPE), 0, 0.95);
-f_terrace    = sp(I_TERRACE);
+f_terrace    = max(0, terrace_steps);
 f_gamma      = clamp(sp(I_GAMMA) * relief_gamma, 0.4, 2.5);
 
 
@@ -337,6 +344,52 @@ function warp(p) =
              fall = exp(-r2 / (2 * v[3] * v[3])))
         [ v[2] * fall * (-oz), v[2] * fall * ox ] ]);
 
+// --- anti-aliasing ------------------------------------------------------
+// The fins sample the field at discrete positions, so the field must carry no
+// detail finer than the fins can represent. Two things set that limit, and
+// only measuring both gets it right:
+//
+//   1. the shortest harmonic wavelength, and
+//   2. how much the domain warp COMPRESSES space -- a swirl squeezes a legal
+//      wavelength into an illegal one, and measured amplification runs from
+//      1.2x up to 3.0x at the strongest swirl settings.
+//
+// Guarding on (1) alone left four of six styles aliasing, with neighbouring
+// fins jumping instead of flowing. So the warp's Jacobian is sampled on a
+// coarse grid and its largest singular value taken as the worst-case
+// frequency multiplier.
+//
+// The harmonic series is then truncated wherever the next term would fall
+// below FINS_PER_WAVE fins. Resolution therefore follows the fins: a finer
+// pitch earns finer detail, and a coarse panel stays clean automatically.
+FINS_PER_WAVE = 3.2;
+
+// Largest singular value of the 2x2 Jacobian [[a,b],[c,d]], in closed form.
+function jacobian_gain(a, b, c, d) =
+    let (t = a * a + b * b + c * c + d * d,
+         u = pow(a * a + b * b - c * c - d * d, 2) + 4 * pow(a * c + b * d, 2))
+    sqrt(max(0, 0.5 * (t + sqrt(max(0, u)))));
+
+function warp_gain_at(x, z, h) =
+    let (px = warp([x + h, z]), mx = warp([x - h, z]),
+         pz = warp([x, z + h]), mz = warp([x, z - h]))
+    jacobian_gain((px[0] - mx[0]) / (2 * h), (pz[0] - mz[0]) / (2 * h),
+                  (px[1] - mx[1]) / (2 * h), (pz[1] - mz[1]) / (2 * h));
+
+WARP_N = 17;
+WARP_AMP = len(VORTICES) == 0 ? 1 :
+    max([ for (i = [0 : WARP_N], j = [0 : WARP_N])
+          warp_gain_at(i / WARP_N * artwork_width,
+                       j / WARP_N * artwork_height,
+                       0.25) ]);
+
+min_wavelength = FINS_PER_WAVE * pitch * max(1, WARP_AMP);
+
+f_wave_count = max(1, min(sp(I_WAVE_COUNT),
+    floor(ln(max(sp(I_WAVE_LEN) * short_side / min_wavelength, 1))
+          / ln(sp(I_HARM_RATIO))) + 1));
+
+
 // Plane waves fanned apart in direction. Fanning is what turns a plain
 // corrugation into interference: successive crests cross instead of stacking.
 function harmonics(p) =
@@ -349,6 +402,18 @@ function harmonics(p) =
          num = vsum1([ for (t = terms) t[0] ]),
          den = vsum1([ for (t = terms) t[1] ]))
     num / max(den, 1e-9);
+
+// Concentric rings. Read in warped space like the harmonics, so the swirl
+// bends them into the ovals and hooks that make this style read as flow rather
+// than as a bullseye. The ring spacing gets the same anti-alias floor as the
+// harmonics -- rings tighter than the fins can resolve would alias just as
+// badly.
+f_radial_len = max(sp(I_RADIAL_LEN) * short_side, min_wavelength);
+RADIAL_CENTRE = spread_point(0, 53, 0.28);
+
+function radial(p) =
+    f_radial_amp <= 0 ? 0 :
+    sin(360 * norm(p - RADIAL_CENTRE) / f_radial_len);
 
 function landscape(p) =
     len(PEAKS) == 0 ? 0 :
@@ -369,7 +434,8 @@ function envelope(p) =
 
 function field_raw(x, z) =
     let (p = [x, z])
-    (harmonics(warp(p)) * f_wave_amp + landscape(p)) * envelope(p);
+    let (w = warp(p))
+    (harmonics(w) * f_wave_amp + radial(w) * f_radial_amp + landscape(p)) * envelope(p);
 
 // --- normalisation -------------------------------------------------------
 // The layers are summed, so their combined range depends on the style, the
@@ -386,11 +452,23 @@ NORM_SAMPLES = [ for (i = [0 : NORM_N], j = [0 : NORM_N])
 FIELD_LO = min(NORM_SAMPLES);
 FIELD_HI = max(NORM_SAMPLES);
 
+// Terracing with SOFT risers. Hard quantisation put neighbouring fins on
+// different levels with nothing in between, which read as broken blocks rather
+// than contours. Keeping the plateaus flat but giving each riser a finite
+// width restores a continuous surface, and at riser = 1 this is the identity,
+// so smooth styles are unaffected.
+TERRACE_RISER = 0.34;
+
+function terrace(g, n) =
+    n <= 1 ? g :
+    let (t = g * n, i = floor(t), f = t - i,
+         fs = clamp01((f - 0.5) / TERRACE_RISER + 0.5))
+    clamp01((i + fs) / n);
+
 function field01(x, z) =
     let (t = clamp01((field_raw(x, z) - FIELD_LO) / max(FIELD_HI - FIELD_LO, 1e-9)),
-         g = pow(t, f_gamma),
-         b = f_terrace > 1 ? clamp01(floor(g * f_terrace) / (f_terrace - 1)) : g)
-    clamp01(b);
+         g = pow(t, f_gamma))
+    clamp01(terrace(g, f_terrace));
 
 // Relief depth in mm at a point on the artwork.
 function relief_at(x, z) = min_relief + relief_span * field01(x, z);

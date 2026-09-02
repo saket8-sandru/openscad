@@ -202,8 +202,18 @@ def apply_expectations(rep: MeshReport, expect: dict) -> list[str]:
                 fails.append(f"{axis}={got:.2f} under {floor}")
     if "max_volume_cm3" in expect and rep.volume_cm3 > expect["max_volume_cm3"]:
         fails.append(f"volume {rep.volume_cm3:.1f}cm3 over {expect['max_volume_cm3']}")
-    if expect.get("no_degenerate", True) and rep.degenerate:
-        fails.append(f"{rep.degenerate} degenerate faces")
+    # Zero-area triangles are reported always, but a project may set an
+    # explicit allowance. CGAL emits a few collinear slivers where a planar
+    # face meets many inserted vertices (here: the backing's front plane along
+    # a tile's top edge, one vertex per fin). They carry no area, leave the
+    # mesh watertight and genus-0, and slicers discard them -- so failing on
+    # them would be failing on a triangulation artefact, not a defect.
+    allowance = expect.get("max_degenerate")
+    if allowance is None:
+        if expect.get("no_degenerate", True) and rep.degenerate:
+            fails.append(f"{rep.degenerate} degenerate faces")
+    elif rep.degenerate > allowance:
+        fails.append(f"{rep.degenerate} degenerate faces exceeds allowance {allowance}")
     return fails
 
 

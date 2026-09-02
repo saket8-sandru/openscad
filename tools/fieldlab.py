@@ -15,10 +15,16 @@ Change the .scad first, then mirror it here.
 
 from __future__ import annotations
 
+import math
+import pathlib
+import re
 from dataclasses import dataclass
 
 import numpy as np
 
+FINS_PER_WAVE = 3.2   # anti-alias guard; see the .scad
+WARP_N = 17
+TERRACE_RISER = 0.34
 R2_A1 = 0.7548776662   # 1 / plastic number
 R2_A2 = 0.5698402910   # 1 / plastic number squared
 NORM_N = 26
@@ -53,17 +59,37 @@ def r2_frac(k, offset, alpha):
 
 
 COLS = ("wave_count", "wave_amp", "wave_len", "harm_ratio", "harm_fall",
-        "dir_spread", "vortex_n", "vortex_str", "vortex_rad", "peak_n",
-        "peak_str", "valley_str", "feature", "envelope", "terrace", "gamma")
+        "dir_spread", "radial_amp", "radial_len", "vortex_n", "vortex_str",
+        "vortex_rad", "peak_n", "peak_str", "valley_str", "feature",
+        "envelope", "gamma")
 
-STYLE_TABLE = {
-    "Flow":         (3, 1.00, 0.55, 1.9, 0.55, 34, 2, 1.00, 0.38, 3, 1.00, 0.80, 0.42, 0.55, 0, 1.00),
-    "Vortex":       (2, 0.75, 0.70, 2.1, 0.45, 28, 3, 1.60, 0.34, 2, 0.70, 0.90, 0.38, 0.35, 0, 0.95),
-    "Dune":         (2, 0.90, 0.90, 2.4, 0.35, 14, 1, 0.55, 0.50, 4, 1.10, 0.60, 0.50, 0.65, 0, 1.15),
-    "Liquid":       (4, 1.00, 0.48, 1.7, 0.62, 41, 2, 1.15, 0.42, 3, 0.85, 0.85, 0.36, 0.45, 0, 0.90),
-    "Interference": (5, 1.20, 0.42, 1.5, 0.72, 47, 1, 0.45, 0.55, 2, 0.55, 0.55, 0.55, 0.25, 0, 1.00),
-    "Topographic":  (3, 0.85, 0.62, 2.0, 0.50, 31, 2, 0.95, 0.40, 4, 1.00, 0.80, 0.40, 0.50, 7, 1.00),
-}
+# The style table lives in the .scad -- that file is the product, and keeping a
+# second hand-maintained copy here caused exactly the drift you would expect
+# (an edit to two rows silently invalidated this mirror until crosscheck caught
+# it). Parsing it out of the source makes the duplication impossible.
+SCAD_PATH = (pathlib.Path(__file__).resolve().parent.parent
+             / "projects/waveform-wall/src/waveform_wall.scad")
+
+_ROW_RE = re.compile(r"/\*\s*(\w[\w ]*?)\s*\*/\s*\[([^\]]*)\]")
+
+
+def load_style_table(path=None):
+    """Read STYLE_TABLE out of the OpenSCAD source."""
+    text = pathlib.Path(path or SCAD_PATH).read_text()
+    body = text.split("STYLE_TABLE = [", 1)[1].split("];", 1)[0]
+    table = {}
+    for name, nums in _ROW_RE.findall(body):
+        values = tuple(float(v) for v in nums.split(","))
+        if len(values) != len(COLS):
+            raise ValueError(f"style {name!r} has {len(values)} columns, "
+                             f"expected {len(COLS)}")
+        table[name] = values
+    if not table:
+        raise ValueError("no styles parsed from STYLE_TABLE")
+    return table
+
+
+STYLE_TABLE = load_style_table()
 
 
 @dataclass
@@ -78,16 +104,89 @@ class FieldSpec:
     swirl_scale: float = 1.0
     detail_scale: float = 1.0
     relief_gamma: float = 1.0
+    # Needed because the anti-alias guard ties field detail to the fin pitch,
+    # and the pitch falls out of the tiling. Mirrors the .scad derivation.
+    printer: str = "A1 mini (180 x 180)"
+    custom_tile_max: float = 200.0
+    fin_pitch: float = 8.0
+    terrace_steps: int = 0
 
     def sp(self, name):
         return STYLE_TABLE[self.style][COLS.index(name)]
 
     @property
     def short_side(self):  return min(self.artwork_width, self.artwork_height)
+
+    # --- tiling, mirroring the .scad -------------------------------------
     @property
-    def wave_count(self):  return max(1, int(self.sp("wave_count")))
+    def tile_limit(self):
+        if self.printer == "A1 mini (180 x 180)":
+            return 172.0
+        if self.printer == "A1 / P1 / X1 (256 x 256)":
+            return 230.0
+        return min(max(self.custom_tile_max, 80.0), 240.0)
+
+    @property
+    def tile_cols(self):
+        return max(1, math.ceil(self.artwork_width / self.tile_limit))
+
+    @property
+    def tile_w(self):
+        return self.artwork_width / self.tile_cols
+
+    @property
+    def fins_per_tile(self):
+        # OpenSCAD round() is half-away-from-zero; Python's round() is
+        # banker's rounding and would disagree on exact .5 cases.
+        return max(4, math.floor(self.tile_w / self.fin_pitch + 0.5))
+
+    @property
+    def pitch(self):
+        return self.tile_w / self.fins_per_tile
+
+    @property
+    def warp_amp(self):
+        """Worst-case frequency multiplication from the domain warp.
+
+        Largest singular value of the warp Jacobian over a coarse grid --
+        the same measurement the .scad makes, on the same grid.
+        """
+        vs = vortices(self)
+        if not vs:
+            return 1.0
+        g = np.arange(WARP_N + 1) / WARP_N
+        xx, zz = np.meshgrid(g * self.artwork_width, g * self.artwork_height,
+                             indexing="ij")
+        h = 0.25
+        px, pz = warp(xx + h, zz, vs)
+        mx, mz = warp(xx - h, zz, vs)
+        qx, qz = warp(xx, zz + h, vs)
+        nx, nz = warp(xx, zz - h, vs)
+        a = (px - mx) / (2 * h); b = (qx - nx) / (2 * h)
+        c = (pz - mz) / (2 * h); d = (qz - nz) / (2 * h)
+        t = a * a + b * b + c * c + d * d
+        u = (a * a + b * b - c * c - d * d) ** 2 + 4 * (a * c + b * d) ** 2
+        return float(np.sqrt(np.maximum(0, 0.5 * (t + np.sqrt(np.maximum(0, u))))).max())
+
+    @property
+    def wave_count(self):
+        """Harmonic series truncated to what the fins can actually resolve."""
+        min_wavelength = self.min_wavelength
+        ratio = self.sp("harm_ratio")
+        allowed = math.floor(
+            math.log(max(self.sp("wave_len") * self.short_side / min_wavelength, 1.0))
+            / math.log(ratio)) + 1
+        return max(1, min(int(self.sp("wave_count")), allowed))
     @property
     def wave_amp(self):    return self.sp("wave_amp") * self.intensity * self.detail_scale
+    @property
+    def radial_amp(self):  return self.sp("radial_amp") * self.intensity * self.detail_scale
+    @property
+    def min_wavelength(self):
+        return FINS_PER_WAVE * self.pitch * max(1.0, self.warp_amp)
+    @property
+    def radial_len(self):
+        return max(self.sp("radial_len") * self.short_side, self.min_wavelength)
     @property
     def wave_len(self):    return self.sp("wave_len") * self.short_side
     @property
@@ -113,7 +212,7 @@ class FieldSpec:
     @property
     def envelope_s(self):  return min(max(self.sp("envelope"), 0.0), 0.95)
     @property
-    def terrace(self):     return self.sp("terrace")
+    def terrace(self):     return max(0, self.terrace_steps)
     @property
     def gamma(self):       return min(max(self.sp("gamma") * self.relief_gamma, 0.4), 2.5)
 
@@ -175,6 +274,15 @@ def harmonics(spec, x, z):
     return num / max(den, 1e-9)
 
 
+def radial(spec, x, z):
+    """Concentric rings, read in warped space like the harmonics."""
+    if spec.radial_amp <= 0:
+        return np.zeros_like(x, dtype=float)
+    cx, cz = spread_point(spec, 0, 53, 0.28)
+    r = np.sqrt((x - cx) ** 2 + (z - cz) ** 2)
+    return sind(360 * r / spec.radial_len)
+
+
 def landscape(spec, x, z, ps):
     if not ps:
         return np.zeros_like(x, dtype=float)
@@ -199,6 +307,7 @@ def field_raw(spec, x, z):
     z = np.asarray(z, dtype=float)
     wx, wz = warp(x, z, vortices(spec))
     return (harmonics(spec, wx, wz) * spec.wave_amp
+            + radial(spec, wx, wz) * spec.radial_amp
             + landscape(spec, x, z, peaks(spec))) * envelope(spec, x, z)
 
 
@@ -210,10 +319,19 @@ def norm_range(spec):
     return float(v.min()), float(v.max())
 
 
+def terrace(g, n):
+    """Flat plateaus with finite-width risers; identity for n <= 1."""
+    if n <= 1:
+        return g
+    t = g * n
+    i = np.floor(t)
+    f = t - i
+    fs = np.clip((f - 0.5) / TERRACE_RISER + 0.5, 0, 1)
+    return np.clip((i + fs) / n, 0, 1)
+
+
 def field(spec, x, z, lohi=None):
     lo, hi = lohi if lohi is not None else norm_range(spec)
     t = np.clip((field_raw(spec, x, z) - lo) / max(hi - lo, 1e-9), 0, 1)
     g = np.power(t, spec.gamma)
-    if spec.terrace > 1:
-        g = np.clip(np.floor(g * spec.terrace) / (spec.terrace - 1), 0, 1)
-    return np.clip(g, 0, 1)
+    return np.clip(terrace(g, spec.terrace), 0, 1)
