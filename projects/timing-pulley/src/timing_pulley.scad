@@ -30,6 +30,12 @@ teeth = 20;            // [8:1:150]
 // Belt width. Common: GT2 6 or 9mm, HTD 5M 9 or 15mm.
 belt_width = 6;        // [3:1:30]
 
+// Tooth counts generated side by side when output = "Size set". 0 skips a slot.
+set_teeth_1 = 16;      // [0:1:150]
+set_teeth_2 = 20;      // [0:1:150]
+set_teeth_3 = 30;      // [0:1:150]
+set_teeth_4 = 40;      // [0:1:150]
+
 
 /* [Flanges] */
 
@@ -37,7 +43,7 @@ belt_width = 6;        // [3:1:30]
 flanges = "Both sides"; // [Both sides, One side, None]
 
 // How far the flange stands above the tooth tips.
-flange_height = 1.4;   // [0.6:0.1:4.0]
+flange_height = 1.4;   // [1.0:0.5:10.0]
 
 // Thickness of the flange rim itself.
 flange_thickness = 1.2; // [0.6:0.1:3.0]
@@ -55,7 +61,7 @@ bore_size = 5;         // [2:0.5:30]
 d_flat = 0.5;          // [0.2:0.05:2.0]
 
 // Added all round the bore. Raise if shafts are tight, lower if loose.
-bore_clearance = 0.15; // [0.00:0.05:0.60]
+bore_clearance = 0.15; // [0.000:0.025:0.600]
 
 
 /* [Hub] */
@@ -78,7 +84,7 @@ clamp_screw = "M3";    // [M3, M4, M5]
 /* [Output] */
 
 // What to generate.
-output = "Pulley"; // [Pulley, Smooth idler, Fit gauge, Collet only]
+output = "Pulley"; // [Pulley, Fit gauge, Collet only, Size set]
 
 
 // =====================================================================
@@ -120,8 +126,11 @@ has_flank = len(flank_lo) == 2;
 // Pitch diameter is fixed by the belt: the pitch circle must measure exactly
 // one belt pitch per tooth. Outside diameter sits inside it by the pitch line
 // differential, which is where the belt's neutral axis rides above the groove.
-pitch_dia   = teeth * pitch / PI;
-outside_dia = pitch_dia - 2 * pld;
+function pitch_dia_of(n)   = n * pitch / PI;
+function outside_dia_of(n) = pitch_dia_of(n) - 2 * pld;
+
+pitch_dia   = pitch_dia_of(teeth);
+outside_dia = outside_dia_of(teeth);
 root_dia    = outside_dia - 2 * depth;
 
 
@@ -164,10 +173,11 @@ module groove_cutter(height) {
             polygon(groove_profile());
 }
 
-module teeth_cut(height) {
-    for (i = [0 : teeth - 1])
-        rotate([0, 0, i * 360 / teeth])
-            translate([0, outside_dia / 2, 0])
+module teeth_cut(height, n = 0) {
+    nn = (n == 0) ? teeth : n;
+    for (i = [0 : nn - 1])
+        rotate([0, 0, i * 360 / nn])
+            translate([0, outside_dia_of(nn) / 2, 0])
                 rotate([0, 0, 180])
                     groove_cutter(height);
 }
@@ -297,28 +307,30 @@ module collet() {
 // Flanges are chamfered at 45 degrees on the belt-facing side. That is what
 // lets the whole part print axis-up with no support: an unchamfered upper
 // flange would be a flat horizontal overhang all the way round.
-module flange(z, flip) {
+module flange(z, flip, n = 0) {
+    od = (n == 0) ? outside_dia : outside_dia_of(n);
+    fd = od + 2 * flange_height;
     translate([0, 0, z]) mirror([0, 0, flip ? 1 : 0])
         union() {
-            cylinder(h = flange_thickness, d = flange_dia);
+            cylinder(h = flange_thickness, d = fd);
             translate([0, 0, flange_thickness - EPS])
-                cylinder(h = flange_height, d1 = flange_dia, d2 = outside_dia);
+                cylinder(h = flange_height, d1 = fd, d2 = od);
         }
 }
 
-module pulley_body() {
+module pulley_body(n = 0) {
+    nn = (n == 0) ? teeth : n;
     difference() {
         union() {
-            if (flange_bottom > 0) flange(0, false);
+            if (flange_bottom > 0) flange(0, false, nn);
             translate([0, 0, flange_bottom])
-                cylinder(h = body_h, d = outside_dia);
-            if (flange_top > 0) flange(total_h, true);
+                cylinder(h = body_h, d = outside_dia_of(nn));
+            if (flange_top > 0) flange(total_h, true, nn);
             if (hub_h > 0)
                 translate([0, 0, total_h - EPS])
                     cylinder(h = hub_h + EPS, d = hub_dia);
         }
-        if (output != "Smooth idler")
-            translate([0, 0, flange_bottom]) teeth_cut(body_h);
+        translate([0, 0, flange_bottom]) teeth_cut(body_h, nn);
         bore_cut(total_h + hub_h);
         clamp_cuts();
     }
@@ -339,8 +351,31 @@ module fit_gauge() {
     }
 }
 
+// Several tooth counts laid out on one plate. Each is a full pulley at the
+// current settings, spaced by its own diameter so nothing collides.
+set_counts = [ set_teeth_1, set_teeth_2, set_teeth_3, set_teeth_4 ];
+
+module size_set() {
+    gap = 6;
+    for (i = [0 : len(set_counts) - 1])
+        if (set_counts[i] >= 8) {
+            n = set_counts[i];
+            od_i = n * pitch / PI - 2 * pld;
+            // running offset: sum of the earlier diameters plus gaps
+            prev = (i == 0) ? 0 :
+                   vsum_d([ for (j = [0 : i - 1])
+                       (set_counts[j] >= 8 ? set_counts[j] * pitch / PI - 2 * pld
+                                           : 0) + gap ]);
+            translate([prev + od_i / 2 + 2 * flange_height, 0, 0])
+                pulley_body(n);
+        }
+}
+
+function vsum_d(v, i = 0) = i >= len(v) ? 0 : v[i] + vsum_d(v, i + 1);
+
 if (output == "Fit gauge")        fit_gauge();
 else if (output == "Collet only") collet();
+else if (output == "Size set")    size_set();
 else                              pulley_body();
 
 // The collet is a second printed part; say so rather than leaving it implicit.
