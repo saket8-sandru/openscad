@@ -66,17 +66,19 @@ hub = "Extended hub"; // [Extended hub, None]
 // Hub length beyond the pulley body.
 hub_length = 8;        // [0:1:30]
 
-// Grub screws clamping the shaft.
-set_screws = 1;        // [0:1:2]
+// How the hub grips the shaft. A plain screw hole does nothing in plastic --
+// there is no thread to hold it -- so every option here uses real hardware or
+// real elasticity instead.
+clamp = "Split clamp"; // [Split clamp, Captive nut, Collet shell, None]
 
-// Metric grub screw thread size.
-set_screw = "M3";      // [M3, M4, M5]
+// Screw size used by the chosen clamp.
+clamp_screw = "M3";    // [M3, M4, M5]
 
 
 /* [Output] */
 
 // What to generate.
-output = "Pulley"; // [Pulley, Smooth idler, Fit gauge]
+output = "Pulley"; // [Pulley, Smooth idler, Fit gauge, Collet only]
 
 
 // =====================================================================
@@ -175,7 +177,13 @@ module teeth_cut(height) {
 // DERIVED / GUARDED
 // =====================================================================
 
-screw_dia = set_screw == "M5" ? 5 : set_screw == "M4" ? 4 : 3;
+screw_dia = clamp_screw == "M5" ? 5 : clamp_screw == "M4" ? 4 : 3;
+// Across-flats and thickness of the matching hex nut (ISO 4032 nominal).
+nut_af    = clamp_screw == "M5" ? 8.0 : clamp_screw == "M4" ? 7.0 : 5.5;
+nut_thick = clamp_screw == "M5" ? 4.7 : clamp_screw == "M4" ? 3.2 : 2.4;
+// Clearance hole, so the screw pulls the two halves together rather than
+// threading into the near half and jacking them apart.
+screw_free = screw_dia + 0.6;
 
 bore_d = bore_type == "REX 8mm" ? 8 : bore_size;
 // Clearance is applied to the bore, so it is added to a hole's size.
@@ -183,9 +191,13 @@ bore_fit = bore_d + 2 * bore_clearance;
 
 flange_dia = outside_dia + 2 * flange_height;
 
-// The hub must clear the bore and give the grub screw somewhere to live.
-hub_dia = max(bore_fit + 2 * (screw_dia * 0.55 + 1.6),
-              min(root_dia, bore_fit + 8));
+// The hub has to clear the bore AND carry the clamp screw beside it, since a
+// screw through the middle would just hit the shaft. That makes a clamping hub
+// noticeably fatter than a plain one -- real clamping pulleys are the same.
+clamp_offset = bore_fit / 2 + screw_free / 2 + 0.8;  // screw axis, off centre
+hub_dia = (clamp == "None")
+    ? max(bore_fit + 4, min(root_dia, bore_fit + 8))
+    : 2 * (clamp_offset + screw_free / 2 + 1.4);
 
 body_h  = belt_width;
 flange_bottom = (flanges == "Both sides" || flanges == "One side") ? flange_thickness : 0;
@@ -227,13 +239,54 @@ module bore_cut(height) {
             linear_extrude(height = height + 2 * EPS, convexity = 6) bore_2d();
 }
 
-module set_screw_cuts() {
-    if (set_screws > 0 && hub_h > 0)
-        for (i = [0 : set_screws - 1])
-            rotate([0, 0, i * 360 / max(set_screws, 1)])
-                translate([0, 0, total_h + hub_h / 2])
-                    rotate([-90, 0, 0])
-                        cylinder(h = hub_dia, d = screw_dia, $fn = 32);
+// --- clamping ----------------------------------------------------------
+//
+// Split clamp: a slot through the hub wall to the bore lets the hub flex, and
+// one screw pulls the two sides together. Grip is round the whole shaft rather
+// than one dent from a grub screw point, and it cannot mar a steel shaft.
+//
+// Captive nut: same slot, but the far side holds a hex nut so the screw has a
+// real thread to pull against.
+//
+// Collet shell: a separate split sleeve drops inside the hub and the screw
+// squeezes it onto the shaft. Costs a second part, but the grip is a full
+// circumference and the shaft never touches printed threads at all.
+
+clamp_z   = total_h + hub_h / 2;
+slot_w    = 1.2;                     // flex gap; must be > one extrusion width
+collet_t  = 2.4;                     // sleeve wall
+collet_od = bore_fit + 2 * collet_t;
+
+module clamp_slot() {
+    // Runs from the bore out through the hub wall, on one side only.
+    translate([-slot_w / 2, 0, clamp_z - hub_h / 2 - EPS])
+        cube([slot_w, hub_dia, hub_h + 2 * EPS]);
+}
+
+module clamp_cuts() {
+    if (hub_h > 0 && clamp != "None") {
+        clamp_slot();
+        // Screw runs beside the bore, crossing the slot. Through the middle it
+        // would foul the shaft and clamp nothing.
+        translate([0, clamp_offset, clamp_z]) rotate([0, 90, 0])
+            cylinder(h = hub_dia * 1.4, d = screw_free, center = true, $fn = 32);
+        if (clamp == "Captive nut")
+            translate([hub_dia / 2 - nut_thick - 0.6, clamp_offset, clamp_z])
+                rotate([0, 90, 0])
+                    cylinder(h = nut_thick + 0.4, d = nut_af / cos(30), $fn = 6);
+        if (clamp == "Collet shell")
+            translate([0, 0, total_h - EPS])
+                cylinder(h = hub_h + 2 * EPS, d = collet_od + 2 * bore_clearance);
+    }
+}
+
+// The separate sleeve for the collet option. Printed upright, split on one side.
+module collet() {
+    difference() {
+        cylinder(h = hub_h, d = collet_od);
+        translate([0, 0, -EPS]) linear_extrude(hub_h + 2 * EPS, convexity = 6) bore_2d();
+        translate([-slot_w / 2, 0, -EPS]) cube([slot_w, collet_od, hub_h + 2 * EPS]);
+    }
 }
 
 
@@ -267,7 +320,7 @@ module pulley_body() {
         if (output != "Smooth idler")
             translate([0, 0, flange_bottom]) teeth_cut(body_h);
         bore_cut(total_h + hub_h);
-        set_screw_cuts();
+        clamp_cuts();
     }
 }
 
@@ -286,7 +339,13 @@ module fit_gauge() {
     }
 }
 
-if (output == "Fit gauge") fit_gauge(); else pulley_body();
+if (output == "Fit gauge")        fit_gauge();
+else if (output == "Collet only") collet();
+else                              pulley_body();
+
+// The collet is a second printed part; say so rather than leaving it implicit.
+if (clamp == "Collet shell" && output == "Pulley")
+    echo("PULLEY  Collet shell selected: also export output = \"Collet only\"");
 
 echo(str("PULLEY  ", belt_profile, "  ", teeth, "T  belt ", belt_width, "mm"));
 echo(str("PULLEY  pitch dia ", pitch_dia, "  outside dia ", outside_dia,
