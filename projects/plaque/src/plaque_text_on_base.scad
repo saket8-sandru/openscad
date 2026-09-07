@@ -32,7 +32,13 @@ base_file = "Base.stl";
 // floats or sinks, this is the number to change. Align check shows it.
 base_top_z = 5.0;      // [0:0.1:60]
 
-// Nudge the base so its centre lands on the origin. Align check shows it.
+// Where the STL sits relative to the origin. CAD exports (Onshape among them)
+// usually put the origin at the part's datum -- a corner -- not at its centre,
+// and the text centres itself on the origin, so it lands off the plaque
+// entirely. Corner mode recentres the base automatically.
+base_origin = "Corner at 0,0"; // [Corner at 0,0, Centred on 0,0]
+
+// Extra nudge on top of that, if it still is not quite right.
 base_shift_x = 0;      // [-200:0.5:200]
 base_shift_y = 0;      // [-200:0.5:200]
 
@@ -112,8 +118,12 @@ sizes = [ for (i = [0 : 3]) raw_sizes[i] * fit_k ];
 
 raised = (text_style == "Raised");
 
+auto_shift = (base_origin == "Corner at 0,0")
+    ? [-plaque_w / 2, -plaque_h / 2] : [0, 0];
+
 module base_model() {
-    translate([base_shift_x, base_shift_y, 0]) import(base_file, convexity = 10);
+    translate([auto_shift[0] + base_shift_x, auto_shift[1] + base_shift_y, 0])
+        import(base_file, convexity = 10);
 }
 
 module text_2d() {
@@ -153,7 +163,8 @@ if (output == "Base only") {
 // Printing the string back is the quickest way to see that has happened.
 echo(str("PLAQUE TEXT  importing >>", base_file, "<<"));
 echo(str("PLAQUE TEXT  top_z=", base_top_z, "  ", text_style, " ", text_depth, "mm"));
-echo("PLAQUE TEXT  nothing visible? set output = \"Base only\" to test the import alone");
+echo(str("PLAQUE TEXT  origin=", base_origin, " -> base shifted by ", auto_shift));
+echo("PLAQUE TEXT  text off the plaque? switch base_origin");
 echo("PLAQUE TEXT  if the text floats or sinks, change base_top_z");
 echo("PLAQUE TEXT  if it sits off to one side, change base_shift_x / base_shift_y");
 if (fit_k < 1)
