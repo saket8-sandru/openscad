@@ -388,9 +388,9 @@
         "watertight": true,
         "bodies": 1,
         "max_bbox": [
-          22,
-          22,
-          20
+          23,
+          23,
+          16
         ]
       }
     },
