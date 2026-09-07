@@ -1,0 +1,343 @@
+{
+  "name": "PLAQUE -- text onto an existing STL",
+  "scad": "src/plaque_text_on_base.scad",
+  "outdir": "exports",
+  "previewdir": "previews",
+  "_notes": [
+    "Every case imports art/test_base.stl, a stand-in plaque built by",
+    "art/test_base.scad. It is deliberately awkward in the two ways a real CAD",
+    "export is awkward: the origin sits at a CORNER, and a raised border means",
+    "the bounding-box top (6.8mm) is NOT the face the lettering lands on",
+    "(5.0mm). Anything that assumes 'top = bbox top' fails on it.",
+    "",
+    "max_bbox is the real test here, not body count. The plaque is 114.3 x",
+    "76.2, so a render that stays inside that footprint is a render whose text",
+    "landed ON the plaque. Text that runs off the edge grows the box, which is",
+    "exactly what the wrong-origin case measures.",
+    "",
+    "wrong_origin is not a bug being enshrined -- it is the reported failure,",
+    "reproduced. Told the wrong origin mode the generator puts the text half a",
+    "plaque away: 25 loose bodies spanning 161.5mm. min_bbox asserts the",
+    "failure is still real, so if the origin control is ever quietly broken the",
+    "case stops failing and says so.",
+    "",
+    "The text cases carry a degenerate-face allowance. Unioning glyph outlines",
+    "into a flat face makes CGAL insert vertices along a letter's straight",
+    "stems, and a few of the resulting triangles are collinear. Checked on",
+    "narrow_text_field: both offenders have all three vertices on one vertical",
+    "line (x = -3.1735, z = 5.0, the lettering face), area exactly 0.0, and the",
+    "mesh is watertight, winding-consistent, one body, Euler 2. Slicers drop",
+    "them. Which cases produce them depends on where glyph coordinates land, so",
+    "it is not predictable from the parameters -- hence an allowance rather",
+    "than a per-case number."
+  ],
+  "cases": [
+    {
+      "name": "raised_default",
+      "params": {
+        "base_file": "../art/test_base.stl",
+        "plaque_w": 114.3,
+        "plaque_h": 76.2,
+        "base_top_z": 5.0
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          114.31,
+          76.21,
+          6.81
+        ],
+        "max_degenerate": 8
+      }
+    },
+    {
+      "name": "recessed",
+      "params": {
+        "base_file": "../art/test_base.stl",
+        "plaque_w": 114.3,
+        "plaque_h": 76.2,
+        "base_top_z": 5.0,
+        "text_style": "Recessed"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          114.31,
+          76.21,
+          6.81
+        ],
+        "max_degenerate": 8
+      }
+    },
+    {
+      "name": "recessed_deep",
+      "params": {
+        "base_file": "../art/test_base.stl",
+        "plaque_w": 114.3,
+        "plaque_h": 76.2,
+        "base_top_z": 5.0,
+        "text_style": "Recessed",
+        "text_depth": 4.0
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          114.31,
+          76.21,
+          6.81
+        ],
+        "max_degenerate": 8
+      }
+    },
+    {
+      "name": "raised_deep",
+      "params": {
+        "base_file": "../art/test_base.stl",
+        "plaque_w": 114.3,
+        "plaque_h": 76.2,
+        "base_top_z": 5.0,
+        "text_depth": 4.0
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          114.31,
+          76.21,
+          9.1
+        ],
+        "max_degenerate": 8
+      }
+    },
+    {
+      "name": "base_only",
+      "params": {
+        "base_file": "../art/test_base.stl",
+        "plaque_w": 114.3,
+        "plaque_h": 76.2,
+        "base_top_z": 5.0,
+        "output": "Base only"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          114.31,
+          76.21,
+          6.81
+        ]
+      }
+    },
+    {
+      "name": "align_check",
+      "params": {
+        "base_file": "../art/test_base.stl",
+        "plaque_w": 114.3,
+        "plaque_h": 76.2,
+        "base_top_z": 5.0,
+        "output": "Align check"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          114.31,
+          76.21,
+          6.81
+        ],
+        "max_degenerate": 8
+      }
+    },
+    {
+      "name": "text_only_fits_field",
+      "params": {
+        "base_file": "../art/test_base.stl",
+        "plaque_w": 114.3,
+        "plaque_h": 76.2,
+        "base_top_z": 5.0,
+        "output": "Text only"
+      },
+      "expect": {
+        "watertight": true,
+        "max_bbox": [
+          98.4,
+          60,
+          2
+        ]
+      }
+    },
+    {
+      "name": "long_name_scales_to_fit",
+      "params": {
+        "base_file": "../art/test_base.stl",
+        "plaque_w": 114.3,
+        "plaque_h": 76.2,
+        "base_top_z": 5.0,
+        "line_2": "Bartholomew Fitzgerald-Montgomery III"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          114.31,
+          76.21,
+          6.81
+        ],
+        "max_degenerate": 8
+      }
+    },
+    {
+      "name": "long_every_line",
+      "params": {
+        "base_file": "../art/test_base.stl",
+        "plaque_w": 114.3,
+        "plaque_h": 76.2,
+        "base_top_z": 5.0,
+        "line_1": "Eagle Scout Service Project Dedication",
+        "line_2": "Maximiliano Alessandro Vasquez-Rodriguez",
+        "line_3": "September 27th, 2025",
+        "line_4": "Boy Scouts of America Troop 273"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          114.31,
+          76.21,
+          6.81
+        ],
+        "max_degenerate": 8
+      }
+    },
+    {
+      "name": "blank_lines",
+      "params": {
+        "base_file": "../art/test_base.stl",
+        "plaque_w": 114.3,
+        "plaque_h": 76.2,
+        "base_top_z": 5.0,
+        "line_3": "",
+        "line_4": ""
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          114.31,
+          76.21,
+          6.81
+        ],
+        "max_degenerate": 8
+      }
+    },
+    {
+      "name": "font_sans",
+      "params": {
+        "base_file": "../art/test_base.stl",
+        "plaque_w": 114.3,
+        "plaque_h": 76.2,
+        "base_top_z": 5.0,
+        "font_face": "Liberation Sans:style=Bold"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          114.31,
+          76.21,
+          6.81
+        ],
+        "max_degenerate": 8
+      }
+    },
+    {
+      "name": "narrow_text_field",
+      "params": {
+        "base_file": "../art/test_base.stl",
+        "plaque_w": 114.3,
+        "plaque_h": 76.2,
+        "base_top_z": 5.0,
+        "text_max_width": 0.5
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          114.31,
+          76.21,
+          6.81
+        ],
+        "max_degenerate": 8
+      }
+    },
+    {
+      "name": "max_sizes_still_fit",
+      "params": {
+        "base_file": "../art/test_base.stl",
+        "plaque_w": 114.3,
+        "plaque_h": 76.2,
+        "base_top_z": 5.0,
+        "size_1": 24,
+        "size_2": 24,
+        "size_3": 20,
+        "size_4": 20
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          114.31,
+          76.21,
+          6.81
+        ],
+        "max_degenerate": 8
+      }
+    },
+    {
+      "name": "wrong_origin_runs_off_the_plaque",
+      "params": {
+        "base_file": "../art/test_base.stl",
+        "plaque_w": 114.3,
+        "plaque_h": 76.2,
+        "base_top_z": 5.0,
+        "base_origin": "Centred on 0,0"
+      },
+      "expect": {
+        "watertight": true,
+        "min_bbox": [
+          120,
+          0,
+          0
+        ],
+        "max_degenerate": 8
+      }
+    },
+    {
+      "name": "reject_recess_through_the_plaque",
+      "params": {
+        "base_file": "../art/test_base.stl",
+        "plaque_w": 114.3,
+        "plaque_h": 76.2,
+        "base_top_z": 2.0,
+        "text_style": "Recessed",
+        "text_depth": 4.0
+      },
+      "expect": {
+        "rejected": "cut clean through"
+      }
+    }
+  ],
+  "views": [
+    {
+      "name": "hero",
+      "camera": "0,0,0,55,0,25,0"
+    },
+    {
+      "name": "top",
+      "camera": "0,0,0,0,0,0,0"
+    }
+  ]
+}

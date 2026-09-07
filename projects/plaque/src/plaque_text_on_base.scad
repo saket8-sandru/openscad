@@ -5,8 +5,15 @@
 // Imports a finished plaque and adds the four text lines on top.
 //
 // OpenSCAD 2021.01 cannot measure an imported STL, so it cannot find your
-// plaque's size or where its top face sits. You supply those two numbers
-// once, and "Align check" makes it obvious when they are right.
+// plaque's size or where its top face sits. You supply those numbers once.
+//
+// DO NOT GUESS THEM. Run this and paste what it prints:
+//
+//     python3 tools/plaquefit.py ~/Downloads/Base.stl
+//
+// It reads the mesh and gives you the exact width, height, top-face height and
+// origin mode. Guessing any one of the four renders as "broken" without saying
+// which one is wrong, which is a bad afternoon.
 //
 // EASIEST: keep this .scad in the same folder as the STL and use the bare
 // file name, since a relative path resolves against the folder holding this
@@ -117,6 +124,16 @@ fit_k = widest > field_w ? field_w / widest : 1;
 sizes = [ for (i = [0 : 3]) raw_sizes[i] * fit_k ];
 
 raised = (text_style == "Raised");
+
+// base_top_z is how far the lettering face stands above the STL's own zero,
+// which for a slab sitting on z=0 is its thickness. Cutting deeper than that
+// punches the lettering clean through the plaque and leaves a stencil. The
+// mesh stays watertight when it happens, so nothing downstream would catch it.
+assert(raised || text_depth < base_top_z,
+       str("Recessed text is ", text_depth, "mm deep but the lettering face ",
+           "is only ", base_top_z, "mm above the base of the STL, so the ",
+           "letters would cut clean through. Reduce text_depth below ",
+           base_top_z, ", or check base_top_z with tools/plaquefit.py."));
 
 auto_shift = (base_origin == "Corner at 0,0")
     ? [-plaque_w / 2, -plaque_h / 2] : [0, 0];
