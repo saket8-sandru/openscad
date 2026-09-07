@@ -100,9 +100,10 @@ text_center = 0.50;    // [0:0.005:1]
 
 /* [Output] */
 
-// Align check draws the text flat over a ghost of the base so you can line
-// it up before committing to a full render.
-output = "Plaque with text"; // [Base only, Plaque with text, Align check, Text only]
+// START WITH "Set-up helper". It draws three markers against your plaque and
+// each one calls out a different number, so you fix them by eye instead of
+// guessing. Then Align check, then the real thing.
+output = "Plaque with text"; // [Set-up helper, Base only, Plaque with text, Align check, Text only]
 
 
 // =====================================================================
@@ -159,7 +160,58 @@ module text_3d() {
     translate([0, 0, z]) linear_extrude(text_depth + EPS) text_2d();
 }
 
-if (output == "Base only") {
+// =====================================================================
+// SET-UP HELPER
+//
+// OpenSCAD cannot measure an imported mesh, so the four numbers above have to
+// be supplied. These markers turn that from guesswork into looking at it.
+//
+// Two markers, each answering one question.
+//
+//   RED POST    stands at the origin, which is where the text centres itself.
+//               It should come up through the MIDDLE of your plaque.
+//                 - near a corner, or missing the plaque -> flip base_origin
+//                 - close but not centred -> base_shift_x / base_shift_y
+//
+//   ORANGE MAT  a flat frame lying AROUND the plaque, never on top of it, so
+//               nothing hides either reading. Its hole is exactly plaque_w by
+//               plaque_h, and it floats at base_top_z.
+//                 - looking DOWN: the hole should hug the plaque outline.
+//                   A gap or an overlap means plaque_w / plaque_h are wrong.
+//                 - looking from the SIDE: it should be level with the face
+//                   the lettering goes on. Floating or sunk means base_top_z
+//                   is wrong -- and on a plaque with a raised border, that
+//                   face is NOT the highest point of the model.
+// =====================================================================
+
+HELP_BAR = 2;
+
+module help_post() {
+    color("red")
+        translate([-HELP_BAR / 2, -HELP_BAR / 2, -10])
+            cube([HELP_BAR, HELP_BAR, base_top_z + 40]);
+}
+
+// The mat surrounds the plaque rather than covering it. A marker drawn ON the
+// face is useless on a bordered plaque -- it disappears into the border, which
+// is the exact case the height reading matters for.
+HELP_SKIRT = 10;
+
+module help_mat() {
+    color("orange")
+        translate([-plaque_w / 2 - HELP_SKIRT, -plaque_h / 2 - HELP_SKIRT, base_top_z])
+            difference() {
+                cube([plaque_w + 2 * HELP_SKIRT, plaque_h + 2 * HELP_SKIRT, 0.6]);
+                translate([HELP_SKIRT, HELP_SKIRT, -0.5])
+                    cube([plaque_w, plaque_h, 1.6]);
+            }
+}
+
+if (output == "Set-up helper") {
+    color("silver") base_model();
+    help_post();
+    help_mat();
+} else if (output == "Base only") {
     // Nothing but the import. If this is empty, the problem is the path or the
     // file -- not the text, the sizes or the alignment.
     base_model();
