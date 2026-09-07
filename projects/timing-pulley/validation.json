@@ -379,6 +379,22 @@
       }
     },
     {
+      "name": "flange_tall_one_side",
+      "params": {
+        "flanges": "One side",
+        "flange_height": 10.0
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          22,
+          22,
+          20
+        ]
+      }
+    },
+    {
       "name": "flange_thin",
       "params": {
         "flange_thickness": 0.6,

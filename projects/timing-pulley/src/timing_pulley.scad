@@ -247,13 +247,19 @@ body_h  = belt_width;
 // half the belt channel drives its chamfer through the middle of the channel and
 // out the far side. The tooth cutter then slices the overlap into loose
 // fragments -- flange_height 10 on a 6mm belt gave 21 disconnected bodies, one
-// per tooth, and the top flange hung 1mm below the plate. The height is capped
-// rather than the chamfer alone: capping just the chamfer would steepen it past
-// 45 degrees, which is the thing that makes this part printable without support.
-max_flange_height = ((flanges == "Both sides") ? body_h / 2 : body_h) - 0.4;
-fh = min(flange_height, max_flange_height);
+// per tooth, and the top flange hung 1mm below the plate.
+//
+// The rule is one line: whatever the chamfers take, leave 0.8mm of the channel
+// at full groove depth, so the belt still has two extrusion widths of real
+// tooth to sit in. The HEIGHT is what gets capped, not the chamfer alone --
+// capping just the chamfer would steepen it past 45 degrees, and 45 degrees is
+// the thing that lets this part print without support.
+FULL_DEPTH_MIN = 0.8;
+usable_rise = body_h - FULL_DEPTH_MIN;
+max_flange_rise = (flanges == "Both sides") ? usable_rise / 2 : usable_rise;
+flange_rise = min(flange_height, max_flange_rise);
 
-flange_dia = outside_dia + 2 * fh;
+flange_dia = outside_dia + 2 * flange_rise;
 
 flange_bottom = (flanges == "Both sides" || flanges == "One side") ? flange_thickness : 0;
 flange_top    = (flanges == "Both sides") ? flange_thickness : 0;
@@ -354,12 +360,12 @@ module collet() {
 // flange would be a flat horizontal overhang all the way round.
 module flange(z, flip, n = 0) {
     od = (n == 0) ? outside_dia : outside_dia_of(n);
-    fd = od + 2 * fh;
+    fd = od + 2 * flange_rise;
     translate([0, 0, z]) mirror([0, 0, flip ? 1 : 0])
         union() {
             cylinder(h = flange_thickness, d = fd);
             translate([0, 0, flange_thickness - EPS])
-                cylinder(h = fh, d1 = fd, d2 = od);
+                cylinder(h = flange_rise, d1 = fd, d2 = od);
         }
 }
 
