@@ -8,17 +8,24 @@
 // plaque's size or where its top face sits. You supply those two numbers
 // once, and "Align check" makes it obvious when they are right.
 //
-// WINDOWS PATHS: use forward slashes, or double the backslashes.
+// EASIEST: save this .scad next to your STL and just use the file name --
+// "base.stl" -- because a relative path resolves against the folder this file
+// is in, not the working directory.
+//
+// If you do use a full path, forward slashes only:
 //   good:  "C:/Users/saket/Downloads/base.stl"
 //   good:  "C:\\Users\\saket\\Downloads\\base.stl"
-//   bad:   "C:\Users\saket\Downloads\base.stl"
+//   bad:   "C:\Users\saket\Downloads\base.stl"   -- \U is an escape, not a folder
+//
+// If nothing appears: set output = "Base only" to test the import by itself,
+// and read the console. OpenSCAD names the exact path it tried to open.
 // =====================================================================
 
 
 /* [Base file] */
 
 // Path to your plaque STL.
-base_file = "C:/Users/saket/Downloads/base.stl";
+base_file = "base.stl";
 
 // Height of the plaque's TOP face above the STL's own origin. If the text
 // floats or sinks, this is the number to change. Align check shows it.
@@ -81,7 +88,7 @@ text_center = 0.50;    // [0:0.005:1]
 
 // Align check draws the text flat over a ghost of the base so you can line
 // it up before committing to a full render.
-output = "Plaque with text"; // [Plaque with text, Align check, Text only]
+output = "Plaque with text"; // [Base only, Plaque with text, Align check, Text only]
 
 
 // =====================================================================
@@ -124,19 +131,28 @@ module text_3d() {
     translate([0, 0, z]) linear_extrude(text_depth + EPS) text_2d();
 }
 
-if (output == "Text only") {
+if (output == "Base only") {
+    // Nothing but the import. If this is empty, the problem is the path or the
+    // file -- not the text, the sizes or the alignment.
+    base_model();
+} else if (output == "Text only") {
     text_3d();
 } else if (output == "Align check") {
-    // Ghost the base, draw the text solid on top of it.
-    %base_model();
+    // The base is drawn solid, not with %, so it survives a full F6 render.
+    // As a background object it showed on F5 and then vanished on F6, which
+    // looks exactly like the import having failed.
+    color("silver") base_model();
     color("red") translate([0, 0, base_top_z]) linear_extrude(0.4) text_2d();
 } else {
     if (raised) union()      { base_model(); text_3d(); }
     else        difference() { base_model(); text_3d(); }
 }
 
-echo(str("PLAQUE TEXT  base=", base_file, "  top_z=", base_top_z,
-         "  ", text_style, " ", text_depth, "mm"));
+// Windows paths with single backslashes are escape sequences, not folders.
+// Printing the string back is the quickest way to see that has happened.
+echo(str("PLAQUE TEXT  importing >>", base_file, "<<"));
+echo(str("PLAQUE TEXT  top_z=", base_top_z, "  ", text_style, " ", text_depth, "mm"));
+echo("PLAQUE TEXT  nothing visible? set output = \"Base only\" to test the import alone");
 echo("PLAQUE TEXT  if the text floats or sinks, change base_top_z");
 echo("PLAQUE TEXT  if it sits off to one side, change base_shift_x / base_shift_y");
 if (fit_k < 1)
