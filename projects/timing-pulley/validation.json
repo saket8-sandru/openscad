@@ -1,0 +1,648 @@
+{
+  "name": "TIMING PULLEY (GT2 2mm / HTD 5M)",
+  "scad": "src/timing_pulley.scad",
+  "outdir": "exports",
+  "previewdir": "previews",
+  "_notes": [
+    "Every single-pulley case is one connected body. 'Size set' is four, one",
+    "per tooth count, and that count is itself the test -- an earlier build had",
+    "all four slots reading the global tooth count and printing the same wheel.",
+    "max_bbox doubles as the build-volume check: 256mm is a Bambu X1/P1 plate,",
+    "tighter caps are set on the cases that once blew past them.",
+    "euler is not asserted. A split clamp legitimately adds handles (bore, screw",
+    "hole, and the loop the slot and screw make together), so the number tracks",
+    "the clamp mode rather than defect-freedom, and bodies + watertight already",
+    "carry the load.",
+    "The 'rejected' cases are the guards. A generator that refuses a bad",
+    "parameter set is only trustworthy if the refusal is tested too -- and the",
+    "string match means the guard has to fail for the right reason, not just",
+    "fail. Both were found by measurement, not by reading the code:",
+    "  8T with the default 5mm bore exported 2 disconnected bodies;",
+    "  flange_height 10 on a 6mm belt exported 21, and hung 1mm below the plate.",
+    "teeth_150 carries a degenerate-face allowance. Extruding all 150 grooves as one drawing leaves a dozen zero-area slivers where neighbouring groove outlines meet -- the per-groove version left none, but took 394s instead of 50s. The slivers carry no area, the mesh stays watertight and single-bodied, and slicers drop them."
+  ],
+  "cases": [
+    {
+      "name": "default",
+      "params": {},
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          20,
+          20,
+          20
+        ]
+      }
+    },
+    {
+      "name": "bore_round",
+      "params": {
+        "bore_type": "Round",
+        "bore_size": 5
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          20,
+          20,
+          20
+        ]
+      }
+    },
+    {
+      "name": "bore_d",
+      "params": {
+        "bore_type": "D-shaft"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          20,
+          20,
+          20
+        ]
+      }
+    },
+    {
+      "name": "bore_hex_8",
+      "params": {
+        "bore_type": "Hex",
+        "bore_size": 8,
+        "teeth": 24
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          26,
+          26,
+          22
+        ]
+      }
+    },
+    {
+      "name": "bore_hex_12",
+      "params": {
+        "bore_type": "Hex",
+        "bore_size": 12,
+        "teeth": 30
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          32,
+          32,
+          22
+        ]
+      }
+    },
+    {
+      "name": "bore_square_8",
+      "params": {
+        "bore_type": "Square",
+        "bore_size": 8,
+        "teeth": 24
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          26,
+          26,
+          22
+        ]
+      }
+    },
+    {
+      "name": "bore_rex8",
+      "params": {
+        "bore_type": "REX 8mm"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          22,
+          22,
+          20
+        ]
+      }
+    },
+    {
+      "name": "bore_bearing_16",
+      "params": {
+        "bore_type": "Bearing seat",
+        "bore_size": 16,
+        "teeth": 36
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          40,
+          40,
+          22
+        ]
+      }
+    },
+    {
+      "name": "bore_solid",
+      "params": {
+        "bore_type": "None (solid)"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          20,
+          20,
+          20
+        ]
+      }
+    },
+    {
+      "name": "bore_tight_clearance",
+      "params": {
+        "bore_clearance": 0.0
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          20,
+          20,
+          20
+        ]
+      }
+    },
+    {
+      "name": "bore_loose_clearance",
+      "params": {
+        "bore_clearance": 0.6
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          22,
+          22,
+          20
+        ]
+      }
+    },
+    {
+      "name": "clamp_split",
+      "params": {
+        "clamp": "Split clamp"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          20,
+          20,
+          20
+        ]
+      }
+    },
+    {
+      "name": "clamp_nut",
+      "params": {
+        "clamp": "Captive nut"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          20,
+          20,
+          20
+        ]
+      }
+    },
+    {
+      "name": "clamp_collet",
+      "params": {
+        "clamp": "Collet shell"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          20,
+          20,
+          20
+        ]
+      }
+    },
+    {
+      "name": "clamp_none",
+      "params": {
+        "clamp": "None"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          20,
+          20,
+          20
+        ]
+      }
+    },
+    {
+      "name": "clamp_m5",
+      "params": {
+        "clamp_screw": "M5"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          24,
+          24,
+          20
+        ]
+      }
+    },
+    {
+      "name": "hub_none",
+      "params": {
+        "hub": "None"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          20,
+          20,
+          12
+        ]
+      }
+    },
+    {
+      "name": "hub_none_with_clamp",
+      "params": {
+        "hub": "None",
+        "clamp": "Split clamp"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          20,
+          20,
+          12
+        ]
+      }
+    },
+    {
+      "name": "hub_long",
+      "params": {
+        "hub_length": 30
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          20,
+          20,
+          42
+        ]
+      }
+    },
+    {
+      "name": "flange_one_side",
+      "params": {
+        "flanges": "One side"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          20,
+          20,
+          20
+        ]
+      }
+    },
+    {
+      "name": "flange_none",
+      "params": {
+        "flanges": "None"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          20,
+          20,
+          20
+        ]
+      }
+    },
+    {
+      "name": "flange_tall_narrow_belt",
+      "params": {
+        "flange_height": 10.0,
+        "flange_thickness": 3.0
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          20,
+          20,
+          20.5
+        ]
+      }
+    },
+    {
+      "name": "flange_tall_wide_belt",
+      "params": {
+        "flange_height": 10.0,
+        "belt_width": 30,
+        "teeth": 40
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          50,
+          50,
+          45
+        ]
+      }
+    },
+    {
+      "name": "flange_thin",
+      "params": {
+        "flange_thickness": 0.6,
+        "flange_height": 1.0
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          20,
+          20,
+          20
+        ]
+      }
+    },
+    {
+      "name": "belt_narrow",
+      "params": {
+        "belt_width": 3
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          20,
+          20,
+          20
+        ]
+      }
+    },
+    {
+      "name": "belt_wide",
+      "params": {
+        "belt_width": 30,
+        "teeth": 40
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          40,
+          40,
+          45
+        ]
+      }
+    },
+    {
+      "name": "teeth_small",
+      "params": {
+        "teeth": 16
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          20,
+          20,
+          20
+        ]
+      }
+    },
+    {
+      "name": "teeth_150",
+      "params": {
+        "teeth": 150
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          110,
+          110,
+          25
+        ],
+        "max_degenerate": 24
+      }
+    },
+    {
+      "name": "htd_20t",
+      "params": {
+        "belt_profile": "HTD 5M",
+        "belt_width": 9
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          40,
+          40,
+          25
+        ]
+      }
+    },
+    {
+      "name": "htd_60t",
+      "params": {
+        "belt_profile": "HTD 5M",
+        "teeth": 60,
+        "belt_width": 15
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          110,
+          110,
+          30
+        ]
+      }
+    },
+    {
+      "name": "htd_bore_rex",
+      "params": {
+        "belt_profile": "HTD 5M",
+        "bore_type": "REX 8mm",
+        "belt_width": 9
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          40,
+          40,
+          25
+        ]
+      }
+    },
+    {
+      "name": "out_fit_gauge",
+      "params": {
+        "output": "Fit gauge"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          20,
+          20,
+          20
+        ]
+      }
+    },
+    {
+      "name": "out_collet",
+      "params": {
+        "output": "Collet only"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          20,
+          20,
+          12
+        ]
+      }
+    },
+    {
+      "name": "out_size_set",
+      "params": {
+        "output": "Size set"
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 4,
+        "max_bbox": [
+          240,
+          60,
+          25
+        ]
+      }
+    },
+    {
+      "name": "out_size_set_htd",
+      "params": {
+        "output": "Size set",
+        "belt_profile": "HTD 5M",
+        "belt_width": 9
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 4,
+        "max_bbox": [
+          240,
+          110,
+          30
+        ]
+      }
+    },
+    {
+      "name": "out_size_set_gaps",
+      "params": {
+        "output": "Size set",
+        "set_teeth_2": 0,
+        "set_teeth_4": 0
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 2,
+        "max_bbox": [
+          240,
+          60,
+          25
+        ]
+      }
+    },
+    {
+      "name": "reject_bore_eats_8t",
+      "params": {
+        "teeth": 8
+      },
+      "expect": {
+        "rejected": "Bore too wide"
+      }
+    },
+    {
+      "name": "reject_hex12_on_20t",
+      "params": {
+        "bore_type": "Hex",
+        "bore_size": 12
+      },
+      "expect": {
+        "rejected": "Bore too wide"
+      }
+    },
+    {
+      "name": "reject_bearing16_on_20t",
+      "params": {
+        "bore_type": "Bearing seat",
+        "bore_size": 16
+      },
+      "expect": {
+        "rejected": "Bore too wide"
+      }
+    },
+    {
+      "name": "reject_bore30_on_20t",
+      "params": {
+        "bore_size": 30
+      },
+      "expect": {
+        "rejected": "Bore too wide"
+      }
+    },
+    {
+      "name": "reject_size_set_smallest_governs",
+      "params": {
+        "output": "Size set",
+        "set_teeth_1": 10,
+        "bore_size": 8
+      },
+      "expect": {
+        "rejected": "Bore too wide"
+      }
+    }
+  ],
+  "views": [
+    {
+      "name": "iso",
+      "camera": "0,0,0,55,0,25,0"
+    },
+    {
+      "name": "top",
+      "camera": "0,0,0,0,0,0,0"
+    }
+  ]
+}

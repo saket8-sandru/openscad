@@ -231,6 +231,32 @@ def run_matrix(spec_path: Path, previews: bool = False) -> int:
         params = case.get("params", {})
         stl = outdir / f"{name}.stl"
         label = f"  {name:<28}"
+
+        # A case may assert that the generator REFUSES a parameter set. Guards
+        # only count as tested if the matrix can express the refusal, so
+        # `"rejected": true` inverts the render check, and `"rejected": "text"`
+        # additionally requires that string in the error -- otherwise a guard
+        # could pass its own test by failing for some unrelated reason.
+        rejected = case.get("expect", {}).get("rejected")
+        if rejected:
+            try:
+                render(scad, stl, params)
+            except ScadError as exc:
+                want = rejected if isinstance(rejected, str) else ""
+                if want and want not in str(exc):
+                    print(f"{label} FAIL  rejected, but not for {want!r}")
+                    failures += 1
+                else:
+                    print(f"{label} PASS  rejected as expected")
+                continue
+            except subprocess.TimeoutExpired:
+                print(f"{label} FAIL  render timeout (expected a rejection)")
+                failures += 1
+                continue
+            print(f"{label} FAIL  rendered, but should have been rejected")
+            failures += 1
+            continue
+
         try:
             secs = render(scad, stl, params)
         except ScadError as exc:

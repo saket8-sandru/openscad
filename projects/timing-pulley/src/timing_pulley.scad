@@ -167,19 +167,20 @@ function groove_profile(tail = 1.0) =
            [ for (i = [len(h) - 1 : -1 : 0]) [-h[i][0], h[i][1]] ],
            [[-half_width, -tail]]);
 
-module groove_cutter(height) {
-    translate([0, 0, -EPS])
-        linear_extrude(height = height + 2 * EPS, convexity = 6)
-            polygon(groove_profile());
-}
-
+// All the grooves are laid out as one 2D drawing and extruded once, rather
+// than extruded one at a time. Geometrically it is the same cutter -- measured
+// against the per-groove version at 150 teeth, the two surfaces agree to 0.14
+// microns and the volumes to 1.6e-7 relative -- but CGAL then has a single
+// solid to subtract instead of one per tooth. A 150T pulley went from 394s to
+// 50s, which is the difference between rendering on MakerWorld and timing out.
 module teeth_cut(height, n = 0) {
     nn = (n == 0) ? teeth : n;
-    for (i = [0 : nn - 1])
-        rotate([0, 0, i * 360 / nn])
-            translate([0, outside_dia_of(nn) / 2, 0])
-                rotate([0, 0, 180])
-                    groove_cutter(height);
+    r  = outside_dia_of(nn) / 2;
+    translate([0, 0, -EPS])
+        linear_extrude(height = height + 2 * EPS, convexity = 6)
+            for (i = [0 : nn - 1])
+                rotate(i * 360 / nn) translate([0, r]) rotate(180)
+                    polygon(groove_profile());
 }
 
 
@@ -199,7 +200,38 @@ bore_d = bore_type == "REX 8mm" ? 8 : bore_size;
 // Clearance is applied to the bore, so it is added to a hole's size.
 bore_fit = bore_d + 2 * bore_clearance;
 
-flange_dia = outside_dia + 2 * flange_height;
+// --- bore versus tooth count -------------------------------------------
+//
+// A bore wider than the tooth roots eats the toothed body outright. What comes
+// back is a bare ring with no teeth on it -- watertight, single-bodied, so no
+// mesh check catches it -- or, once the bore reaches through the flanges too, a
+// ring plus loose fragments. Measured: 8T GT2 with the default 5mm bore exported
+// as 2 disconnected bodies; a 16mm bearing seat on 20T exported as a plain hub.
+//
+// The bore is deliberately NOT clamped to fit. A pulley whose bore quietly
+// shrank would not go on the shaft it was printed for, and a part that fits
+// nothing is worse than a render that stops and says why.
+function r2(x) = round(x * 100) / 100;
+
+MIN_RIM = 0.8;   // two extrusion widths of material between bore and tooth root
+
+// "Size set" prints several tooth counts at once, so the smallest one decides.
+set_ok = [ for (n = [set_teeth_1, set_teeth_2, set_teeth_3, set_teeth_4])
+               if (n >= 8) n ];
+governing_teeth = (output == "Size set" && len(set_ok) > 0) ? min(set_ok) : teeth;
+governing_root  = outside_dia_of(governing_teeth) - 2 * depth;
+
+// The collet sleeve is a separate part with no teeth, so the rule does not
+// apply to it; neither does it to a solid blank.
+bore_matters = bore_type != "None (solid)" && output != "Collet only";
+max_bore     = governing_root - 2 * MIN_RIM - 2 * bore_clearance;
+min_teeth_for_bore = ceil((bore_fit + 2 * MIN_RIM + 2 * pld + 2 * depth) * PI / pitch);
+
+assert(!bore_matters || bore_fit + 2 * MIN_RIM <= governing_root,
+       str("Bore too wide for this pulley. ", governing_teeth, "T ", belt_profile,
+           " has a ", r2(governing_root), "mm root circle, which leaves room for a ",
+           r2(max_bore), "mm bore. Lower bore_size to that, or raise teeth to ",
+           min_teeth_for_bore, "."));
 
 // The hub has to clear the bore AND carry the clamp screw beside it, since a
 // screw through the middle would just hit the shaft. That makes a clamping hub
@@ -210,6 +242,19 @@ hub_dia = (clamp == "None")
     : 2 * (clamp_offset + screw_free / 2 + 1.4);
 
 body_h  = belt_width;
+
+// A 45-degree chamfer rises as far as it stands proud, so a flange taller than
+// half the belt channel drives its chamfer through the middle of the channel and
+// out the far side. The tooth cutter then slices the overlap into loose
+// fragments -- flange_height 10 on a 6mm belt gave 21 disconnected bodies, one
+// per tooth, and the top flange hung 1mm below the plate. The height is capped
+// rather than the chamfer alone: capping just the chamfer would steepen it past
+// 45 degrees, which is the thing that makes this part printable without support.
+max_flange_height = ((flanges == "Both sides") ? body_h / 2 : body_h) - 0.4;
+fh = min(flange_height, max_flange_height);
+
+flange_dia = outside_dia + 2 * fh;
+
 flange_bottom = (flanges == "Both sides" || flanges == "One side") ? flange_thickness : 0;
 flange_top    = (flanges == "Both sides") ? flange_thickness : 0;
 total_h = flange_bottom + body_h + flange_top;
@@ -309,12 +354,12 @@ module collet() {
 // flange would be a flat horizontal overhang all the way round.
 module flange(z, flip, n = 0) {
     od = (n == 0) ? outside_dia : outside_dia_of(n);
-    fd = od + 2 * flange_height;
+    fd = od + 2 * fh;
     translate([0, 0, z]) mirror([0, 0, flip ? 1 : 0])
         union() {
             cylinder(h = flange_thickness, d = fd);
             translate([0, 0, flange_thickness - EPS])
-                cylinder(h = flange_height, d1 = fd, d2 = od);
+                cylinder(h = fh, d1 = fd, d2 = od);
         }
 }
 
