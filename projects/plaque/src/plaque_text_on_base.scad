@@ -8,24 +8,25 @@
 // plaque's size or where its top face sits. You supply those two numbers
 // once, and "Align check" makes it obvious when they are right.
 //
-// EASIEST: save this .scad next to your STL and just use the file name --
-// "base.stl" -- because a relative path resolves against the folder this file
-// is in, not the working directory.
+// EASIEST: keep this .scad in the same folder as the STL and use the bare
+// file name, since a relative path resolves against the folder holding this
+// file rather than the working directory.
 //
-// If you do use a full path, forward slashes only:
-//   good:  "C:/Users/saket/Downloads/base.stl"
-//   good:  "C:\\Users\\saket\\Downloads\\base.stl"
-//   bad:   "C:\Users\saket\Downloads\base.stl"   -- \U is an escape, not a folder
+// The name is CASE SENSITIVE on some Macs: "Base.stl" and "base.stl" are not
+// interchangeable. Copy it exactly as Finder shows it.
+//
+// Full path instead, if you prefer:
+//   "/Users/saket/Downloads/Base.stl"
 //
 // If nothing appears: set output = "Base only" to test the import by itself,
-// and read the console. OpenSCAD names the exact path it tried to open.
+// then read the console -- OpenSCAD names the exact path it tried to open.
 // =====================================================================
 
 
 /* [Base file] */
 
 // Path to your plaque STL.
-base_file = "base.stl";
+base_file = "Base.stl";
 
 // Height of the plaque's TOP face above the STL's own origin. If the text
 // floats or sinks, this is the number to change. Align check shows it.
