@@ -7,13 +7,14 @@
 // OpenSCAD 2021.01 cannot measure an imported STL, so it cannot find your
 // plaque's size or where its top face sits. You supply those numbers once.
 //
-// DO NOT GUESS THEM. Run this and paste what it prints:
+// DO NOT GUESS THEM. Guessing any one of the four renders as "broken" without
+// saying which one is wrong, which is a bad afternoon. Two ways to get them:
 //
-//     python3 tools/plaquefit.py ~/Downloads/Base.stl
+//   1. Set output = "Set-up helper" and press F5. It draws two markers against
+//      your plaque and you read the numbers off by eye. No extra software.
 //
-// It reads the mesh and gives you the exact width, height, top-face height and
-// origin mode. Guessing any one of the four renders as "broken" without saying
-// which one is wrong, which is a bad afternoon.
+//   2. If you have Python:  python3 tools/plaquefit.py ~/Downloads/Base.stl
+//      It reads the mesh and prints the block ready to paste in.
 //
 // EASIEST: keep this .scad in the same folder as the STL and use the bare
 // file name, since a relative path resolves against the folder holding this
@@ -100,9 +101,9 @@ text_center = 0.50;    // [0:0.005:1]
 
 /* [Output] */
 
-// START WITH "Set-up helper". It draws three markers against your plaque and
-// each one calls out a different number, so you fix them by eye instead of
-// guessing. Then Align check, then the real thing.
+// START WITH "Set-up helper" and press F5, not F6 -- its markers are colour
+// coded and F6 renders everything one colour. Once the markers line up, use
+// Align check, then the real thing.
 output = "Plaque with text"; // [Set-up helper, Base only, Plaque with text, Align check, Text only]
 
 
@@ -164,9 +165,8 @@ module text_3d() {
 // SET-UP HELPER
 //
 // OpenSCAD cannot measure an imported mesh, so the four numbers above have to
-// be supplied. These markers turn that from guesswork into looking at it.
-//
-// Two markers, each answering one question.
+// be supplied. These two markers turn that from guesswork into looking at it,
+// one question each. Press F5 -- F6 discards the colours.
 //
 //   RED POST    stands at the origin, which is where the text centres itself.
 //               It should come up through the MIDDLE of your plaque.
