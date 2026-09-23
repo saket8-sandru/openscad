@@ -25,10 +25,12 @@
 belt_profile = "GT2 2mm"; // [GT2 2mm, HTD 5M]
 
 // Number of teeth. Below about 10 the belt will not wrap without binding.
-// The ceiling is a render-time limit, not a geometry one: tooth count is the
-// only parameter that really drives render cost, and 150T measured 394s before
-// the cutter rewrite and 50s after. 75T is 34s, and 75T HTD 5M is already
-// 121mm across, so the plate runs out before the budget does.
+//
+// The ceiling is a render-time limit, not a geometry one. Tooth count is the
+// only parameter that really drives render cost: 150T took 394s with the old
+// per-groove cutter and 50s with the current one, and 75T lands around 17-34s
+// depending on how loaded the machine is. And 75T HTD 5M is already 121mm
+// across, so past here the plate runs out before the render budget does.
 teeth = 20;            // [8:1:75]
 
 // Belt width. Common: GT2 6 or 9mm, HTD 5M 9 or 15mm.

@@ -165,10 +165,17 @@ heights and a few cylinder diameters:
 
 | | render |
 | --- | --- |
-| 20T GT2 (default) | 7 s |
-| 75T GT2 | 17 s |
-| 75T HTD 5M | 17 s |
+| 20T GT2 (default) | 6–7 s |
+| 75T GT2 | 17–34 s |
+| 75T HTD 5M | ~17 s |
 | Size set, four 75T GT2 — the heaviest thing the sliders can reach | **98 s** |
+
+Those are ranges because this is a shared cloud container and the same render
+varies close to twofold between runs — 75T GT2 was measured at 16.8, 22, 28 and
+34 s on identical input. Single timings here are worth about one significant
+figure. The 98 s figure is the exception: it was measured twice, at 97.9 and
+98.6 s. The conclusion the ceiling rests on survives the noise anyway, since
+the cutter rewrite was an eightfold change, not a twofold one.
 
 A single 75T HTD 5M is already 121 mm across, so the plate runs out before the
 render budget does. That is what the Size set guard is for: four legal tooth
