@@ -19,7 +19,30 @@
     "fail. Both were found by measurement, not by reading the code:",
     "  8T with the default 5mm bore exported 2 disconnected bodies;",
     "  flange_height 10 on a 6mm belt exported 21, and hung 1mm below the plate.",
-    "teeth_150 carries a degenerate-face allowance. Extruding all 150 grooves as one drawing leaves a dozen zero-area slivers where neighbouring groove outlines meet -- the per-groove version left none, but took 394s instead of 50s. The slivers carry no area, the mesh stays watertight and single-bodied, and slicers drop them."
+    "teeth_150 carries a degenerate-face allowance. Extruding all 150 grooves as one drawing leaves a dozen zero-area slivers where neighbouring groove outlines meet -- the per-groove version left none, but took 394s instead of 50s. The slivers carry no area, the mesh stays watertight and single-bodied, and slicers drop them.",
+    "",
+    "The tooth ceiling is 75, and it is a render-time limit rather than a",
+    "geometry one. Tooth count is the only parameter that meaningfully drives",
+    "render cost: 150T measured 394s before the cutter rewrite and 50s after,",
+    "75T measures 34s. Everything else -- belt width, hub length, flange size,",
+    "bore -- changes extrude heights and a few cylinder diameters and does not",
+    "move the number.",
+    "",
+    "The plate guard is measured, not estimated. Predicted width for the default",
+    "set (16/20/30/40 GT2) is 88.46mm against an exported 88.5. It measures from",
+    "the hub as well as the flange, because on a small wheel with a clamping hub",
+    "the hub is the wider of the two, and the default set proves it: without the",
+    "hub term the prediction is 86.25mm and 2.25mm short.",
+    "",
+    "out_size_set_4x75_gt2 carries a degenerate-face allowance, like teeth_max_75",
+    "would have at 150. 300 groove outlines extruded as one drawing leave a few",
+    "collinear slivers where neighbours meet: 18 of 148224 faces, area exactly",
+    "0.0, cross product exactly 0.0, and the mesh is watertight, winding-",
+    "consistent, four bodies, Euler -16 -- which is four genus-3 pulleys, exactly",
+    "what four split-clamp wheels should be. Slicers drop them.",
+    "",
+    "That case is also the heaviest thing the sliders can reach: 98.6s and",
+    "209.8mm wide against a predicted 209.75."
   ],
   "cases": [
     {
@@ -457,19 +480,35 @@
       }
     },
     {
-      "name": "teeth_150",
+      "name": "teeth_max_75",
       "params": {
-        "teeth": 150
+        "teeth": 75
       },
       "expect": {
         "watertight": true,
         "bodies": 1,
         "max_bbox": [
-          110,
-          110,
+          55,
+          55,
           25
-        ],
-        "max_degenerate": 24
+        ]
+      }
+    },
+    {
+      "name": "teeth_max_75_htd",
+      "params": {
+        "belt_profile": "HTD 5M",
+        "teeth": 75,
+        "belt_width": 15
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 1,
+        "max_bbox": [
+          130,
+          130,
+          35
+        ]
       }
     },
     {
@@ -602,6 +641,26 @@
       }
     },
     {
+      "name": "out_size_set_4x75_gt2",
+      "params": {
+        "output": "Size set",
+        "set_teeth_1": 75,
+        "set_teeth_2": 75,
+        "set_teeth_3": 75,
+        "set_teeth_4": 75
+      },
+      "expect": {
+        "watertight": true,
+        "bodies": 4,
+        "max_bbox": [
+          240,
+          60,
+          25
+        ],
+        "max_degenerate": 32
+      }
+    },
+    {
       "name": "reject_bore_eats_8t",
       "params": {
         "teeth": 8
@@ -648,6 +707,36 @@
       },
       "expect": {
         "rejected": "Bore too wide"
+      }
+    },
+    {
+      "name": "reject_set_4x75_htd_off_the_plate",
+      "params": {
+        "output": "Size set",
+        "belt_profile": "HTD 5M",
+        "belt_width": 9,
+        "set_teeth_1": 75,
+        "set_teeth_2": 75,
+        "set_teeth_3": 75,
+        "set_teeth_4": 75
+      },
+      "expect": {
+        "rejected": "over the 240mm plate"
+      }
+    },
+    {
+      "name": "reject_set_2x75_htd_just_over",
+      "params": {
+        "output": "Size set",
+        "belt_profile": "HTD 5M",
+        "belt_width": 9,
+        "set_teeth_1": 75,
+        "set_teeth_2": 75,
+        "set_teeth_3": 0,
+        "set_teeth_4": 0
+      },
+      "expect": {
+        "rejected": "over the 240mm plate"
       }
     }
   ],

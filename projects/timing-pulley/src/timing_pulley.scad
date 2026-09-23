@@ -25,16 +25,22 @@
 belt_profile = "GT2 2mm"; // [GT2 2mm, HTD 5M]
 
 // Number of teeth. Below about 10 the belt will not wrap without binding.
-teeth = 20;            // [8:1:150]
+// The ceiling is a render-time limit, not a geometry one: tooth count is the
+// only parameter that really drives render cost, and 150T measured 394s before
+// the cutter rewrite and 50s after. 75T is 34s, and 75T HTD 5M is already
+// 121mm across, so the plate runs out before the budget does.
+teeth = 20;            // [8:1:75]
 
 // Belt width. Common: GT2 6 or 9mm, HTD 5M 9 or 15mm.
 belt_width = 6;        // [3:1:30]
 
 // Tooth counts generated side by side when output = "Size set". 0 skips a slot.
-set_teeth_1 = 16;      // [0:1:150]
-set_teeth_2 = 20;      // [0:1:150]
-set_teeth_3 = 30;      // [0:1:150]
-set_teeth_4 = 40;      // [0:1:150]
+// These are four pulleys on one plate, so the total width is checked against
+// the plate as well -- four legal counts can still be an illegal plate.
+set_teeth_1 = 16;      // [0:1:75]
+set_teeth_2 = 20;      // [0:1:75]
+set_teeth_3 = 30;      // [0:1:75]
+set_teeth_4 = 40;      // [0:1:75]
 
 
 /* [Flanges] */
@@ -261,6 +267,39 @@ flange_rise = min(flange_height, max_flange_rise);
 
 flange_dia = outside_dia + 2 * flange_rise;
 
+// --- Size set versus the plate -----------------------------------------
+//
+// Four wheels stand side by side on one plate, so four legal tooth counts can
+// still be an illegal plate: a single 75T HTD 5M is 121mm across, and four of
+// them come to nearly half a metre. Nothing downstream catches it either --
+// the mesh is four perfectly good pulleys, just not on any printer.
+//
+// Measured from the same running offset the layout uses, and from the HUB as
+// well as the flange, because on a small wheel with a clamping hub the hub is
+// the wider of the two. Checked against the default set (16/20/30/40 GT2):
+// predicted 88.46mm, exported 88.5mm.
+SET_GAP   = 6;     // clear air the layout leaves between neighbouring wheels
+PLATE_MAX = 240;   // MakerWorld's auto-arrange gets unreliable past about here
+
+function set_prev(v, i) = i <= 0 ? 0
+    : set_prev(v, i - 1) + outside_dia_of(v[i - 1]) + SET_GAP;
+function set_ctr(v, i)  = set_prev(v, i) + outside_dia_of(v[i]) / 2
+                          + 2 * flange_rise;
+function set_half(v, i) = max(outside_dia_of(v[i]) + 2 * flange_rise,
+                              hub_dia) / 2;
+
+set_span_x = len(set_ok) == 0 ? 0
+    : max([ for (i = [0 : len(set_ok) - 1]) set_ctr(set_ok, i) + set_half(set_ok, i) ])
+    - min([ for (i = [0 : len(set_ok) - 1]) set_ctr(set_ok, i) - set_half(set_ok, i) ]);
+set_span_y = len(set_ok) == 0 ? 0
+    : max([ for (i = [0 : len(set_ok) - 1]) 2 * set_half(set_ok, i) ]);
+
+assert(output != "Size set" || max(set_span_x, set_span_y) <= PLATE_MAX,
+       str("Size set comes to ", r2(set_span_x), " x ", r2(set_span_y),
+           "mm, which is over the ", PLATE_MAX, "mm plate. Lower a tooth ",
+           "count, or set a slot to 0 to drop that wheel and print it ",
+           "separately."));
+
 flange_bottom = (flanges == "Both sides" || flanges == "One side") ? flange_thickness : 0;
 flange_top    = (flanges == "Both sides") ? flange_thickness : 0;
 total_h = flange_bottom + body_h + flange_top;
@@ -407,7 +446,7 @@ module fit_gauge() {
 set_counts = [ set_teeth_1, set_teeth_2, set_teeth_3, set_teeth_4 ];
 
 module size_set() {
-    gap = 6;
+    gap = SET_GAP;
     for (i = [0 : len(set_counts) - 1])
         if (set_counts[i] >= 8) {
             n = set_counts[i];
@@ -417,7 +456,7 @@ module size_set() {
                    vsum_d([ for (j = [0 : i - 1])
                        (set_counts[j] >= 8 ? set_counts[j] * pitch / PI - 2 * pld
                                            : 0) + gap ]);
-            translate([prev + od_i / 2 + 2 * flange_height, 0, 0])
+            translate([prev + od_i / 2 + 2 * flange_rise, 0, 0])
                 pulley_body(n);
         }
 }
