@@ -12,7 +12,7 @@ matrix before it is called finished.
 | --- | --- | --- |
 | [`waveform-wall`](projects/waveform-wall/docs/README.md) | **LAMELLA** — parametric ribbed wave wall-art generator. Any size, tiled automatically, with vertical seams that measure invisible. 22 controls. | CAD-validated, not yet print-tested |
 | [`waveform-frame`](projects/waveform-frame/docs/README.md) | **LAMELLA FRAME** — the simple sibling. One framed piece off one plate, natural terrain field, 8 controls. | CAD-validated, not yet print-tested |
-| [`leopard-vent`](projects/leopard-vent/docs/README.md) | **LEOPARD VENT** — venting / lightening pattern of irregular 3-, 4- or 6-sided holes with a guaranteed rib thickness. Standalone panel, slicer cutter, DXF/SVG outline, or a module to subtract from your own part. | CAD-validated, not yet print-tested |
+| [`leopard-vent`](projects/leopard-vent/docs/README.md) | **LEOPARD VENT** — venting / lightening pattern of irregular 3-, 4- or 6-sided holes with a guaranteed rib thickness. Standalone panel, slicer cutter, DXF/SVG outline, a module to subtract from your own part, or an Onshape FeatureScript feature. | CAD-validated, not yet print-tested. FeatureScript: geometry tested, not yet run in Onshape |
 
 The two LAMELLA products share a field engine in spirit but not in code: the
 frame version uses scattered terrain points rather than interfering waves,
@@ -30,6 +30,8 @@ tools/                     shared harness
     seamcheck.py           proves tiles of one artwork actually join
     overhangcheck.py       proves a part prints without support
     ribcheck.py            measures the webs, border and hole sizes of a perforated part
+    fsmirror.py            Python mirror of the leopard-vent FeatureScript geometry, and its tests
+    fsinterp.py            runs that FeatureScript's own maths, to compare with the mirror
 projects/<product>/
     src/<product>.scad     the model; self-contained so it drops straight into
                            MakerWorld's Parametric Model Maker

@@ -7,13 +7,17 @@ three for a triangle web, or six for uneven Voronoi cells.
 
 ![Default panel](../previews/hero.png)
 
-Use it two ways:
+Use it three ways:
 
 1. **Standalone** — open [`src/leopard_vent.scad`](../src/leopard_vent.scad) in
    OpenSCAD or MakerWorld's Parametric Model Maker and generate a vented panel,
    a cutter body for a slicer or CAD subtract, or a flat 2D outline for DXF/SVG.
 2. **As a library** — `use <leopard_vent.scad>` and subtract `leopard_vent_2d()`
    from your own part. See [Using it in your own part](#using-it-in-your-own-part).
+3. **In Onshape** — [`featurescript/leopard_vent.fs`](../featurescript/leopard_vent.fs)
+   is the same pattern as a custom feature: pick planar faces and it cuts them.
+   Its geometry is tested; it has **not yet been run inside Onshape**. See
+   [featurescript.md](featurescript.md).
 
 ## The rib thickness is a guarantee
 
