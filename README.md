@@ -12,10 +12,12 @@ matrix before it is called finished.
 | --- | --- | --- |
 | [`waveform-wall`](projects/waveform-wall/docs/README.md) | **LAMELLA** — parametric ribbed wave wall-art generator. Any size, tiled automatically, with vertical seams that measure invisible. 22 controls. | CAD-validated, not yet print-tested |
 | [`waveform-frame`](projects/waveform-frame/docs/README.md) | **LAMELLA FRAME** — the simple sibling. One framed piece off one plate, natural terrain field, 8 controls. | CAD-validated, not yet print-tested |
+| [`leopard-vent`](projects/leopard-vent/docs/README.md) | **LEOPARD VENT** — venting / lightening pattern of irregular 3-, 4- or 6-sided holes with a guaranteed rib thickness. Standalone panel, slicer cutter, DXF/SVG outline, or a module to subtract from your own part. | CAD-validated, not yet print-tested |
 
-The two share a field engine in spirit but not in code: the frame version uses
-scattered terrain points rather than interfering waves, because independent
-placement is what reads as natural, and it drops tiling entirely.
+The two LAMELLA products share a field engine in spirit but not in code: the
+frame version uses scattered terrain points rather than interfering waves,
+because independent placement is what reads as natural, and it drops tiling
+entirely.
 
 ## Layout
 
@@ -27,6 +29,7 @@ tools/                     shared harness
     crosscheck.py          proves fieldlab agrees with the .scad
     seamcheck.py           proves tiles of one artwork actually join
     overhangcheck.py       proves a part prints without support
+    ribcheck.py            measures the webs, border and hole sizes of a perforated part
 projects/<product>/
     src/<product>.scad     the model; self-contained so it drops straight into
                            MakerWorld's Parametric Model Maker
@@ -43,11 +46,12 @@ projects/<product>/
 | OpenSCAD | 2021.01 | Stable release; the one MakerWorld's Parametric Model Maker runs. Nightly-only features are deliberately avoided. |
 | trimesh | 5.1.0 | Mesh validation. |
 | scipy / numpy / networkx | 1.17.1 / 2.4.6 / 3.6.1 | Connected components, field maths, mesh splitting. |
+| shapely | 2.1.2 | Section geometry for `ribcheck.py`. |
 | xvfb | — | OpenSCAD 2021.01 needs an X server for PNG export; STL export does not. |
 
 ```bash
 apt-get install -y openscad xvfb
-pip3 install numpy scipy trimesh pillow networkx
+pip3 install numpy scipy trimesh pillow networkx shapely
 ```
 
 ## Using the harness

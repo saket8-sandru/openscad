@@ -1,0 +1,25 @@
+{
+  "name": "LEOPARD VENT example: fan grille (library use)",
+  "scad": "examples/fan_grille.scad",
+  "outdir": "exports",
+  "previewdir": "previews",
+  "_notes": [
+    "Exercises leopard_vent.scad through use<>, with a ring-shaped child region.",
+    "ribcheck counts the screw holes as holes too; they sit outside the blade circle,",
+    "so the closest pair is always two vents and rib is the vent web. No border check:",
+    "the plate edge to a screw hole is the fan's own geometry, 2.3mm on a 40mm fan."
+  ],
+  "cases": [
+    {"name": "fan_40", "params": {"fan_size": 40}, "expect": {"watertight": true, "bodies": 1, "max_bbox": [40.01, 40.01, 2.01]}, "ribcheck": {"rib": 1.6, "min_holes": 5}},
+    {"name": "fan_60", "params": {"fan_size": 60}, "expect": {"watertight": true, "bodies": 1, "max_bbox": [60.01, 60.01, 2.01]}, "ribcheck": {"rib": 1.6, "min_holes": 5}},
+    {"name": "fan_80", "params": {"fan_size": 80}, "expect": {"watertight": true, "bodies": 1, "max_bbox": [80.01, 80.01, 2.01]}, "ribcheck": {"rib": 1.6, "min_holes": 5}},
+    {"name": "fan_92", "params": {"fan_size": 92}, "expect": {"watertight": true, "bodies": 1, "max_bbox": [92.01, 92.01, 2.01]}, "ribcheck": {"rib": 1.6, "min_holes": 5}},
+    {"name": "fan_120", "params": {"fan_size": 120}, "expect": {"watertight": true, "bodies": 1, "max_bbox": [120.01, 120.01, 2.01]}, "ribcheck": {"rib": 1.6, "min_holes": 5}},
+    {"name": "fan_140", "params": {"fan_size": 140}, "expect": {"watertight": true, "bodies": 1, "max_bbox": [140.01, 140.01, 2.01]}, "ribcheck": {"rib": 1.6, "min_holes": 5}},
+    {"name": "fan_80_no_hub", "params": {"hub": 0}, "expect": {"watertight": true, "bodies": 1, "max_bbox": [80.01, 80.01, 2.01]}, "ribcheck": {"rib": 1.6}},
+    {"name": "fan_80_quads", "params": {"cell_shape": "4 sides"}, "expect": {"watertight": true, "bodies": 1, "max_bbox": [80.01, 80.01, 2.01]}, "ribcheck": {"rib": 1.6}},
+    {"name": "fan_80_tris", "params": {"cell_shape": "3 sides"}, "expect": {"watertight": true, "bodies": 1, "max_bbox": [80.01, 80.01, 2.01]}, "ribcheck": {"rib": 1.6}},
+    {"name": "fan_unknown_size", "params": {"fan_size": 50}, "expect": {"rejected": "no screw data"}}
+  ],
+  "views": [{"name": "top", "camera": "0,0,0,0,0,0,0"}]
+}
