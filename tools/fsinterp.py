@@ -110,21 +110,52 @@ class Continue(Exception):
     pass
 
 
+# Type annotations are checked as Onshape checks them at run time: a value
+# that fails a parameter's `is T`, or a function's `returns T`, is an error.
+# Types that only Onshape values carry (Context, Sketch, Query, ...) are not
+# modelled and pass.
+def type_ok(v, t):
+    if t == "number":
+        return isinstance(v, (int, float)) and not isinstance(v, bool)
+    if t == "boolean":
+        return isinstance(v, bool)
+    if t == "string":
+        return isinstance(v, str)
+    if t == "map":
+        return isinstance(v, dict)
+    if t == "array":
+        return isinstance(v, (list, tuple))
+    if t == "Vector":
+        return isinstance(v, (list, tuple)) and len(v) >= 1 and all(
+            isinstance(x, (int, float)) and not isinstance(x, bool) for x in v)
+    if t == "function":
+        return callable(v)
+    if t[:1].isupper() and t.startswith("Leopard"):
+        return isinstance(v, EnumVal) and v.enum == t
+    return True
+
+
 class Func:
-    def __init__(self, name, params, body, closure, interp):
+    def __init__(self, name, params, body, closure, interp, rtype=None):
         self.name, self.params, self.body, self.closure, self.interp = name, params, body, closure, interp
+        self.rtype = rtype
 
     def __call__(self, *args):
         if len(args) != len(self.params):
             raise FsError(f"{self.name}: expected {len(self.params)} arguments, got {len(args)}")
         env = Env(self.closure)
-        for p, a in zip(self.params, args):
+        for (p, t), a in zip(self.params, args):
+            if t is not None and not type_ok(a, t):
+                raise FsError(f"{self.name}: argument {p} is not {t}: {a!r:.80}")
             env.declare(p, a)
+        value = None
         try:
             self.interp.exec_block(self.body, env)
         except Return as r:
-            return r.value
-        return None
+            value = r.value
+        if self.rtype is not None and not type_ok(value, self.rtype):
+            raise FsError(f"{self.name}: returned {value!r:.80}, not {self.rtype}")
+        return value
 
 
 class Env:
@@ -253,11 +284,12 @@ class Parser:
                 self.take()
                 name = self.new_name()
                 params = self.params()
+                rtype = None
                 if self.at("returns"):
                     self.take()
-                    self.ident()
+                    rtype = self.ident()
                 body = self.block()
-                items.append(("function", name, params, body))
+                items.append(("function", name, params, body, rtype))
             else:
                 tok = self.peek()
                 raise SyntaxError(f"line {tok[2]}: unexpected {tok[1]!r} at top level")
@@ -267,10 +299,11 @@ class Parser:
         self.take("(")
         ps = []
         while not self.at(")"):
-            ps.append(self.new_name())
+            name, ptype = self.new_name(), None
             if self.at("is"):
                 self.take()
-                self.ident()
+                ptype = self.ident()
+            ps.append((name, ptype))
             if self.at(","):
                 self.take()
         self.take(")")
@@ -555,7 +588,7 @@ class Interp:
             if it[0] == "enum":
                 self.globals.declare(it[1], {v: EnumVal(it[1], v) for v in it[2]})
             elif it[0] == "function":
-                self.globals.declare(it[1], Func(it[1], it[2], it[3], self.globals, self))
+                self.globals.declare(it[1], Func(it[1], it[2], it[3], self.globals, self, it[4]))
             elif it[0] == "const":
                 consts.append(it)
         for _, name, expr in consts:
