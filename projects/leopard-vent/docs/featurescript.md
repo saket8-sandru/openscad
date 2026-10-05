@@ -21,18 +21,22 @@ Onshape access while writing it. Here is what that means in practice:
   FeatureScript standard library source, version 2960 (May 2026).
 - All the maths — cells, outline handling, clipping, rounding, the exact lines
   and arcs it sketches — was executed outside Onshape and measured. See below.
-- Nobody has pasted it into a Feature Studio yet. The first run may still turn
-  up a mistake of the kind only Onshape can report. If it does, the Feature
-  Studio's error panel gives a line number; that plus the message is enough to
-  fix it.
+- **First paste into Onshape (3083) found one error, now fixed:** `box` is a
+  reserved word in FeatureScript (its mutable-reference type, `new box(x)`),
+  and the file used it as a variable name in three places. Onshape reported
+  "mismatched input 'box' expecting ID". `tools/fsinterp.py` now rejects
+  FeatureScript's reserved words, so the crosscheck catches that kind of
+  mistake. Whether the feature then runs end to end in Onshape is not yet
+  known. If it errors, the Feature Studio's error panel gives a line number;
+  that plus the message is enough to fix it.
 
 ## Installing
 
 1. In any Onshape document, create a **Feature Studio**.
-2. Replace its contents with `leopard_vent.fs`. If your Feature Studio opened
-   with a newer `FeatureScript` / `import` version on its first two lines,
-   keep the newer pair. 2960 is just the version this file was checked
-   against.
+2. Select everything in it and paste `leopard_vent.fs` over it. The file's
+   first two lines are the ones Onshape writes for a new Feature Studio
+   (`FeatureScript 3083;` and an import of `common.fs`). If your Onshape writes
+   a newer number, keep yours.
 3. In a Part Studio, add the feature to the toolbar through **Custom
    features**, choosing the document and Feature Studio you used. It appears
    as **Leopard vent**.
@@ -161,7 +165,7 @@ to be harmless: the same polygon listed from a different corner.
 
 **Not tested — needs Onshape:**
 
-- That the file loads at all.
+- That the file loads cleanly now the `box` names are fixed.
 - That a solid's planar face reports its normal pointing out of the material
   (standard B-rep convention). The cut runs against that normal; if it were
   reversed, the cutters would miss the part.

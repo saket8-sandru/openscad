@@ -153,6 +153,19 @@ class Env:
 #
 # Statements and expressions become small tuples; the interpreter walks them.
 
+# Words FeatureScript reserves, so they cannot name a variable, parameter or
+# function. `box` is the one that bit: it is FeatureScript's mutable-reference
+# type (`new box(x)`), and Onshape rejected `const box = ...` with
+# "mismatched input 'box' expecting ID". Known reserved words, not
+# necessarily all of them.
+RESERVED = {
+    "annotation", "as", "box", "break", "case", "catch", "const", "continue", "default",
+    "else", "enum", "export", "false", "for", "function", "if", "import", "in", "inf",
+    "is", "new", "operator", "precondition", "predicate", "return", "returns", "silent",
+    "switch", "throw", "true", "try", "type", "typecheck", "undefined", "var", "while",
+}
+
+
 class Parser:
     def __init__(self, tokens):
         self.t, self.i = tokens, 0
@@ -172,6 +185,14 @@ class Parser:
         if tok[0] != "id":
             raise SyntaxError(f"line {tok[2]}: expected a name, got {tok[1]!r}")
         return tok[1]
+
+    def new_name(self):
+        """A name being declared: a variable, parameter or function."""
+        tok = self.peek()
+        name = self.ident()
+        if name in RESERVED:
+            raise SyntaxError(f"line {tok[2]}: {name!r} is a reserved word in FeatureScript")
+        return name
 
     def skip_balanced(self, open_, close):
         depth = 0
@@ -230,7 +251,7 @@ class Parser:
                 items.append(("const", name, expr))
             elif self.at("function"):
                 self.take()
-                name = self.ident()
+                name = self.new_name()
                 params = self.params()
                 if self.at("returns"):
                     self.take()
@@ -246,7 +267,7 @@ class Parser:
         self.take("(")
         ps = []
         while not self.at(")"):
-            ps.append(self.ident())
+            ps.append(self.new_name())
             if self.at("is"):
                 self.take()
                 self.ident()
@@ -270,7 +291,7 @@ class Parser:
             return ("block", self.block())
         if self.at("var") or self.at("const"):
             self.take()
-            name = self.ident()
+            name = self.new_name()
             expr = None
             if self.at("="):
                 self.take()
@@ -299,7 +320,7 @@ class Parser:
             self.take("(")
             if self.peek()[1] == "var" and self.peek(2)[1] == "in":
                 self.take("var")
-                name = self.ident()
+                name = self.new_name()
                 self.take("in")
                 seq = self.expr()
                 self.take(")")

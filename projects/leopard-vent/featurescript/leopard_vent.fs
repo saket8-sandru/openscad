@@ -1,5 +1,5 @@
-FeatureScript 2960;
-import(path : "onshape/std/geometry.fs", version : "2960.0");
+FeatureScript 3083;
+import(path : "onshape/std/common.fs", version : "3083.0");
 
 // =====================================================================
 // LEOPARD VENT -- irregular-cell venting and lightening pattern (Onshape)
@@ -33,10 +33,9 @@ import(path : "onshape/std/geometry.fs", version : "2960.0");
 // maths and matches the mirror point for point. The Onshape calls themselves
 // have never been run. See ../docs/featurescript.md.
 //
-// Paste into a Feature Studio. If Onshape has already written its own
-// "FeatureScript" and "import" lines at the top, keep whichever version is
-// newer. Every std call here was checked against version 2960; older
-// versions are untested.
+// Paste over everything in a new Feature Studio: the first two lines are the
+// ones Onshape 3083 writes itself. Every std call here was checked against the
+// std library source at 2960, and every one is reachable through common.fs.
 // =====================================================================
 
 
@@ -374,11 +373,11 @@ function planFace(context is Context, face is Query, directionQuery is Query, se
             cores = append(cores, core);
     }
 
-    const box = evBox3d(context, { "topology" : qOwnerBody(face), "cSys" : cSys, "tight" : false });
+    const partBox = evBox3d(context, { "topology" : qOwnerBody(face), "cSys" : cSys, "tight" : false });
     return {
             "cores" : cores,
             "sketchPlane" : sketchPlane,
-            "below" : max(-box.minCorner[2] / millimeter, 0),
+            "below" : max(-partBox.minCorner[2] / millimeter, 0),
             "faceArea" : evArea(context, { "entities" : face }) / (millimeter * millimeter)
         };
 }
@@ -675,8 +674,8 @@ function voronoiCells(S is array, nx is number, ny is number, p is number, a is 
                     if ((di != 0 || dj != 0) && ii >= 0 && ii <= nx && jj >= 0 && jj <= ny && norm(S[ii][jj] - s) < 2 * rc)
                         nbrs = append(nbrs, S[ii][jj]);
                 }
-            const box = [s + vector(-rc, -rc), s + vector(rc, -rc), s + vector(rc, rc), s + vector(-rc, rc)];
-            const c = clipAll(box, s, nbrs);
+            const startBox = [s + vector(-rc, -rc), s + vector(rc, -rc), s + vector(rc, rc), s + vector(-rc, rc)];
+            const c = clipAll(startBox, s, nbrs);
             if (size(c) >= 3)
                 out = append(out, c);
         }
