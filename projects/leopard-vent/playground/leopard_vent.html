@@ -1,0 +1,1093 @@
+<title>Leopard Vent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Saira+Stencil+One&display=swap">
+<style>
+/* Layout: a workbench -- the plate on a cutting mat, the controls as a tool rail beside it. */
+:root {
+  --bg: #e6e9e4;
+  --mat: #dde2dc;
+  --panel: #f4f5f1;
+  --ink: #1d2320;
+  --muted: #59625b;
+  --line: #c4cbc3;
+  --plate: #b8782a;
+  --plate-ink: #7c4f17;
+  --obstacle: #f4f5f1;
+  --ok: #2f7a4b;
+  --warn: #9a5b00;
+  --focus: #2a6fdb;
+  --font-display: "Saira Stencil One", "Arial Narrow", Impact, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --radius: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141816; --mat: #1a1f1c; --panel: #1f2522; --ink: #e5e9e3; --muted: #9ba49d;
+    --line: #2f3833; --plate: #c88a3a; --plate-ink: #e2b06b; --obstacle: #1a1f1c;
+    --ok: #6cc28c; --warn: #e3a64a; --focus: #7aa7ff; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141816; --mat: #1a1f1c; --panel: #1f2522; --ink: #e5e9e3; --muted: #9ba49d;
+  --line: #2f3833; --plate: #c88a3a; --plate-ink: #e2b06b; --obstacle: #1a1f1c;
+  --ok: #6cc28c; --warn: #e3a64a; --focus: #7aa7ff; color-scheme: dark;
+}
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font-body); }
+.wrap { max-width: 1240px; margin: 0 auto; padding-inline: 16px; padding-block: 18px 40px; display: grid; gap: 16px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; }
+h1 { font: 400 clamp(30px, 5vw, 44px)/1 var(--font-display); letter-spacing: 0.02em; margin: 0; color: var(--plate-ink); }
+.lede { margin: 0; color: var(--muted); max-width: 62ch; text-wrap: pretty; }
+.bench { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+@media (max-width: 900px) { .bench { grid-template-columns: minmax(0, 1fr); } }
+.stage { min-width: 0; display: grid; gap: 10px; }
+.mat { background: var(--mat); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; position: relative;
+  background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 20px 20px; background-position: -1px -1px; }
+#preview { display: block; width: 100%; height: auto; max-height: 72vh; touch-action: manipulation; cursor: crosshair; }
+#preview .plate { fill: var(--plate); stroke: var(--plate-ink); stroke-width: 0.25; }
+#preview .ghost { fill: none; stroke: var(--muted); stroke-width: 0.3; stroke-dasharray: 1 1; }
+.hint { font-size: 13px; color: var(--muted); margin: 0; }
+.readout { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { font: 500 13px/1 var(--font-data); font-variant-numeric: tabular-nums; padding: 7px 10px; border-radius: 999px;
+  background: var(--panel); border: 1px solid var(--line); white-space: nowrap; }
+.chip b { font-weight: 500; color: var(--muted); margin-right: 6px; font-family: var(--font-body); }
+.chip.ok { border-color: var(--ok); color: var(--ok); }
+.chip.warn { border-color: var(--warn); color: var(--warn); }
+aside { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; display: grid; gap: 14px; min-width: 0; }
+fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; min-width: 0; }
+legend { font: 600 11px/1 var(--font-body); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); padding: 0; margin-bottom: 8px; }
+.row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 10px; }
+.row label { font-size: 14px; }
+.row output { font: 500 13px/1 var(--font-data); font-variant-numeric: tabular-nums; color: var(--muted); min-width: 4.5ch; text-align: right; }
+.row input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--plate); }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.seg button { font: 500 13px/1 var(--font-body); padding: 9px 6px; border: 0; background: transparent; color: var(--ink); cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--plate); color: #fff; }
+.seg button:disabled { color: var(--muted); opacity: 0.55; cursor: not-allowed; }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn { font: 500 14px/1 var(--font-body); padding: 10px 12px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; }
+.btn.primary { background: var(--plate); border-color: var(--plate); color: #fff; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.note { font-size: 13px; color: var(--muted); margin: 0; text-wrap: pretty; }
+.note code { font-family: var(--font-data); font-size: 12px; }
+#status { min-height: 1.5em; }
+.foot { display: grid; gap: 6px; max-width: 75ch; color: var(--muted); font-size: 14px; }
+.foot h2 { font: 600 11px/1 var(--font-body); letter-spacing: 0.12em; text-transform: uppercase; margin: 6px 0 0; }
+.foot p { margin: 0; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>LEOPARD VENT</h1>
+    <p class="lede">Irregular vent and lightening holes with a rib you can trust. Every web between holes comes out exactly the thickness you set. Tap the plate to place screw holes and watch the pattern make room.</p>
+  </header>
+
+  <div class="bench">
+    <section class="stage" aria-label="Preview">
+      <div class="mat">
+        <svg id="preview" role="img" aria-label="Plate preview: tap to add or remove a screw hole"></svg>
+      </div>
+      <p class="hint">Tap empty plate to add a hole of the size set under <em>Screw holes</em>. Tap a hole to remove it.</p>
+      <div class="readout" id="readout" aria-live="polite"></div>
+    </section>
+
+    <aside aria-label="Settings">
+      <fieldset>
+        <legend>Pattern</legend>
+        <div class="seg" id="shape" role="group" aria-label="Cell shape">
+          <button type="button" id="shape-TRI" data-v="TRI">3 sides</button>
+          <button type="button" id="shape-QUAD" data-v="QUAD">4 sides</button>
+          <button type="button" id="shape-HEX" data-v="HEX">6 sides</button>
+        </div>
+        <div class="seg" id="style" role="group" aria-label="Layout style">
+          <button type="button" id="style-classic" data-v="classic">Classic</button>
+          <button type="button" id="style-relaxed" data-v="relaxed">Relaxed</button>
+          <button type="button" id="style-rosette" data-v="rosette">Rosette</button>
+        </div>
+        <p class="note" id="style-note"></p>
+        <div class="row"><label for="cell">Cell size</label><output for="cell" id="cell-o"></output><input id="cell" type="range" min="5" max="40" step="0.5" value="12"></div>
+        <div class="row"><label for="rib">Rib (web between holes)</label><output for="rib" id="rib-o"></output><input id="rib" type="range" min="0.8" max="6" step="0.1" value="2"></div>
+        <div class="row"><label for="irr">Irregularity</label><output for="irr" id="irr-o"></output><input id="irr" type="range" min="0" max="1" step="0.05" value="0.7"></div>
+        <div class="row"><label for="corner">Hole corner radius</label><output for="corner" id="corner-o"></output><input id="corner" type="range" min="0" max="5" step="0.25" value="1"></div>
+        <div class="row"><label for="minhole">Smallest hole kept</label><output for="minhole" id="minhole-o"></output><input id="minhole" type="range" min="0" max="15" step="0.5" value="4"></div>
+        <div class="btns"><button type="button" class="btn" id="reseed">New pattern</button><span class="chip" id="seed-chip"></span></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Plate</legend>
+        <div class="row"><label for="w">Width</label><output for="w" id="w-o"></output><input id="w" type="range" min="40" max="300" step="1" value="140"></div>
+        <div class="row"><label for="h">Height</label><output for="h" id="h-o"></output><input id="h" type="range" min="40" max="300" step="1" value="90"></div>
+        <div class="row"><label for="rr">Corner radius</label><output for="rr" id="rr-o"></output><input id="rr" type="range" min="0" max="30" step="0.5" value="5"></div>
+        <div class="row"><label for="border">Solid border</label><output for="border" id="border-o"></output><input id="border" type="range" min="1" max="20" step="0.5" value="5"></div>
+        <div class="row"><label for="thick">Thickness (STL)</label><output for="thick" id="thick-o"></output><input id="thick" type="range" min="1" max="10" step="0.2" value="3"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Screw holes</legend>
+        <div class="seg" id="screw" role="group" aria-label="Hole size">
+          <button type="button" id="screw-3.4" data-v="3.4">M3</button>
+          <button type="button" id="screw-4.5" data-v="4.5">M4</button>
+          <button type="button" id="screw-5.5" data-v="5.5">M5</button>
+          <button type="button" id="screw-20" data-v="20">Ø20</button>
+        </div>
+        <div class="btns">
+          <button type="button" class="btn" id="corners">Screw in each corner</button>
+          <button type="button" class="btn" id="clear">Remove all</button>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Get the files</legend>
+        <div class="btns">
+          <button type="button" class="btn primary" id="save-zip">Save DXF + STL + SVG (.zip)</button>
+          <button type="button" class="btn" id="save-svg">Save SVG</button>
+          <button type="button" class="btn" id="copy-dxf">Copy DXF</button>
+        </div>
+        <p class="note" id="status" role="status"></p>
+        <p class="note"><b>Onshape:</b> start a sketch on the face, <em>Insert DXF</em>, then <em>Extrude &rarr; Remove</em>. <b>3D print:</b> slice the STL as is. <b>Laser:</b> the SVG and DXF are cut lines in millimetres.</p>
+      </fieldset>
+    </aside>
+  </div>
+
+  <section class="foot" aria-label="How it works">
+    <h2>How the rib stays exact</h2>
+    <p>The plate is divided into cells that share their edges exactly, and each cell is shrunk by half a rib. Wherever two holes face each other, the web between them is one rib thick; where several meet it only gets thicker. Rounding a corner or dropping a small hole only ever removes hole, so neither can thin a rib. The border and the clearance round each screw hole are built the same way.</p>
+    <h2>Styles</h2>
+    <p><b>Classic</b> lays a jittered grid over the plate and trims it around obstacles. <b>Relaxed</b> (6 sides) repeatedly moves each cell's centre to the middle of its cell, so cells even out and wrap around screw holes. <b>Rosette</b> starts with a ring of cells around each hole, the way spots ring a leopard's rosette, then relaxes.</p>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/earcut@2.2.4/dist/earcut.min.js"></script>
+
+<script id="engine">
+// LEOPARD VENT geometry engine. Pure functions, no page access, so tools can
+// run it outside a browser. Classic style is a port of the same maths as
+// projects/leopard-vent/featurescript/leopard_vent.fs (via tools/fsmirror.py);
+// relaxed and rosette are new here. Units: millimetres, y up.
+"use strict";
+var LV = (function () {
+  const PITCH = { QUAD: 1, TRI: Math.sqrt(4 / Math.sqrt(3)), HEX: Math.sqrt(2 / Math.sqrt(3)) };
+  const ACROSS = { QUAD: 1, TRI: 1 / Math.sqrt(3), HEX: 1 };
+  const JITTER = { QUAD: 0.35, TRI: 0.28, HEX: 0.35 };
+  const MARGIN = 4, SAG = 0.005, TINY_EDGE = 0.01, TINY_TURN = 1e-3, MIN_RADIUS = 0.01,
+        TINY_AREA = 1e-6, EPS = 1e-9, D2R = Math.PI / 180;
+
+  // ---------------------------------------------------------------- basics
+  const add = (a, b) => [a[0] + b[0], a[1] + b[1]];
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1]];
+  const mul = (a, k) => [a[0] * k, a[1] * k];
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1];
+  const cross2 = (a, b) => a[0] * b[1] - a[1] * b[0];
+  const vlen = (a) => Math.hypot(a[0], a[1]);
+  const unit = (a) => { const n = vlen(a); return [a[0] / n, a[1] / n]; };
+  const fsRound = (x) => Math.floor(x + 0.5);
+  const clamp01 = (x) => Math.min(1, Math.max(0, x));
+
+  function wrap360(a) { return a - 360 * Math.floor(a / 360); }
+  function hash01(n, s) {
+    const a0 = Math.sin(wrap360(n * 12.9898 + s * 78.233 + 41.7) * D2R) * 43758.5453;
+    const a = a0 - Math.floor(a0);
+    const c0 = Math.sin(wrap360(a * 311.7 + n * 74.7 + s * 19.19) * D2R) * 24634.6345;
+    return c0 - Math.floor(c0);
+  }
+  function jitter(i, j, a, s) {
+    const n = (i * 977 + j) * 2;
+    const r = a * Math.sqrt(hash01(n, s));
+    const t = 360 * hash01(n + 1, s);
+    return [r * Math.cos(t * D2R), r * Math.sin(t * D2R)];
+  }
+
+  function signedArea(p) {
+    let s = 0;
+    for (let k = 0; k < p.length; k++) {
+      const a = p[k], b = p[(k + 1) % p.length];
+      s += a[0] * b[1] - b[0] * a[1];
+    }
+    return s / 2;
+  }
+  function centroid(p) {
+    let x = 0, y = 0;
+    for (const q of p) { x += q[0]; y += q[1]; }
+    return [x / p.length, y / p.length];
+  }
+  function areaCentroid(p) {
+    let A = 0, cx = 0, cy = 0;
+    for (let k = 0; k < p.length; k++) {
+      const a = p[k], b = p[(k + 1) % p.length], c = a[0] * b[1] - b[0] * a[1];
+      A += c; cx += (a[0] + b[0]) * c; cy += (a[1] + b[1]) * c;
+    }
+    if (Math.abs(A) < 1e-12) return centroid(p);
+    return [cx / (3 * A), cy / (3 * A)];
+  }
+  const ccw = (p) => (signedArea(p) >= 0 ? p : p.slice().reverse());
+
+  // Keep the part of a polygon where (x - m) . d < 0. Strict, so a corner on
+  // the line is emitted once, as a crossing.
+  function clipHalf(poly, m, d) {
+    const n = poly.length;
+    if (n < 3) return [];
+    const out = [];
+    for (let k = 0; k < n; k++) {
+      const a = poly[k], b = poly[(k + 1) % n];
+      const fa = dot(sub(a, m), d), fb = dot(sub(b, m), d);
+      if (fa < 0) out.push(a);
+      if ((fa < 0) !== (fb < 0)) out.push(add(a, mul(sub(b, a), fa / (fa - fb))));
+    }
+    return out;
+  }
+  function clipLeftOf(poly, a, b, dist) {
+    const t = unit(sub(b, a)), left = [-t[1], t[0]];
+    return clipHalf(poly, add(a, mul(left, dist)), mul(left, -1));
+  }
+  function insetConvex(poly, dist) {
+    const p = ccw(poly);
+    let out = p;
+    for (let k = 0; k < p.length; k++) {
+      out = clipLeftOf(out, p[k], p[(k + 1) % p.length], dist);
+      if (out.length < 3) return [];
+    }
+    return out;
+  }
+  function tidy(poly) {
+    let p = poly.slice(), changed = true;
+    while (changed && p.length >= 3) {
+      changed = false;
+      const n = p.length;
+      for (let k = 0; k < n; k++) {
+        const a = p[(k + n - 1) % n], b = p[k], c = p[(k + 1) % n];
+        const e1 = sub(b, a), e2 = sub(c, b), l1 = vlen(e1), l2 = vlen(e2);
+        if (l1 < TINY_EDGE || l2 < TINY_EDGE || Math.abs(cross2(e1, e2)) < TINY_TURN * l1 * l2) {
+          p = p.slice(0, k).concat(p.slice(k + 1));
+          changed = true;
+          break;
+        }
+      }
+    }
+    return p.length >= 3 && Math.abs(signedArea(p)) > TINY_AREA ? p : [];
+  }
+  function clipAll(poly, s, nbrs) {
+    for (const q of nbrs) {
+      poly = clipHalf(poly, mul(add(s, q), 0.5), sub(q, s));
+      if (poly.length < 3) return [];
+    }
+    return poly;
+  }
+
+  // ---------------------------------------------------------------- cropped cells
+  function latticeFrame(lo, hi, p, h) {
+    const hx = 2 * Math.ceil((Math.ceil((hi[0] - lo[0]) / (2 * p)) + MARGIN) / 2);
+    const hy = 2 * Math.ceil((Math.ceil((hi[1] - lo[1]) / (2 * h)) + MARGIN) / 2);
+    const c = [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2];
+    return { o: [c[0] - hx * p, c[1] - hy * h], nx: 2 * hx, ny: 2 * hy };
+  }
+  function lattice(o, p, nx, ny, stagger, a, s) {
+    const h = stagger ? p * Math.sqrt(3) / 2 : p, V = [];
+    for (let i = 0; i <= nx; i++) {
+      const col = [];
+      for (let j = 0; j <= ny; j++) {
+        const d = jitter(i - nx / 2, j - ny / 2, a, s);
+        col.push([o[0] + (i + (stagger ? (j % 2) / 2 : 0)) * p + d[0], o[1] + j * h + d[1]]);
+      }
+      V.push(col);
+    }
+    return V;
+  }
+  function touches(c, lo, hi) {
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const q of c) { x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]); }
+    return x1 > lo[0] && x0 < hi[0] && y1 > lo[1] && y0 < hi[1];
+  }
+  function quadCells(V, nx, ny, lo, hi) {
+    const out = [];
+    for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) {
+      const c = [V[i][j], V[i + 1][j], V[i + 1][j + 1], V[i][j + 1]];
+      if (touches(c, lo, hi)) out.push(c);
+    }
+    return out;
+  }
+  function triCells(V, nx, ny, lo, hi) {
+    const out = [];
+    for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) {
+      const cs = j % 2 === 0
+        ? [[V[i][j], V[i + 1][j], V[i][j + 1]], [V[i + 1][j], V[i + 1][j + 1], V[i][j + 1]]]
+        : [[V[i][j], V[i + 1][j], V[i + 1][j + 1]], [V[i][j], V[i + 1][j + 1], V[i][j + 1]]];
+      for (const c of cs) if (touches(c, lo, hi)) out.push(c);
+    }
+    return out;
+  }
+  function voronoiCells(S, nx, ny, p, a, lo, hi) {
+    const rc = p / Math.sqrt(3) + a + 1e-6, out = [];
+    for (let i = 0; i <= nx; i++) for (let j = 0; j <= ny; j++) {
+      const s = S[i][j];
+      if (!(s[0] > lo[0] - rc && s[0] < hi[0] + rc && s[1] > lo[1] - rc && s[1] < hi[1] + rc)) continue;
+      const nbrs = [];
+      for (let di = -3; di <= 3; di++) for (let dj = -3; dj <= 3; dj++) {
+        const ii = i + di, jj = j + dj;
+        if ((di || dj) && ii >= 0 && ii <= nx && jj >= 0 && jj <= ny && vlen(sub(S[ii][jj], s)) < 2 * rc)
+          nbrs.push(S[ii][jj]);
+      }
+      const box = [[s[0] - rc, s[1] - rc], [s[0] + rc, s[1] - rc], [s[0] + rc, s[1] + rc], [s[0] - rc, s[1] + rc]];
+      const c = clipAll(box, s, nbrs);
+      if (c.length >= 3) out.push(c);
+    }
+    return out;
+  }
+  function cropCells(shape, lo, hi, cell, irr, s) {
+    const p = cell * PITCH[shape], st = shape !== "QUAD", h = st ? p * Math.sqrt(3) / 2 : p;
+    const a = clamp01(irr) * JITTER[shape] * p;
+    const fr = latticeFrame(lo, hi, p, h), V = lattice(fr.o, p, fr.nx, fr.ny, st, a, s);
+    if (shape === "TRI") return triCells(V, fr.nx, fr.ny, lo, hi);
+    if (shape === "HEX") return voronoiCells(V, fr.nx, fr.ny, p, a, lo, hi);
+    return quadCells(V, fr.nx, fr.ny, lo, hi);
+  }
+
+  // ---------------------------------------------------------------- fitted cells
+  function quadFit(lo, hi, cell, irr, s) {
+    const W = sub(hi, lo), nx = Math.max(1, fsRound(W[0] / cell)), ny = Math.max(1, fsRound(W[1] / cell));
+    const px = W[0] / nx, py = W[1] / ny, a = clamp01(irr) * JITTER.QUAD * Math.min(px, py), V = [];
+    for (let i = 0; i <= nx; i++) {
+      const col = [];
+      for (let j = 0; j <= ny; j++) {
+        const d = jitter(i, j, a, s);
+        col.push([lo[0] + i * px + (i === 0 || i === nx ? 0 : d[0]), lo[1] + j * py + (j === 0 || j === ny ? 0 : d[1])]);
+      }
+      V.push(col);
+    }
+    const out = [];
+    for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) out.push([V[i][j], V[i + 1][j], V[i + 1][j + 1], V[i][j + 1]]);
+    return out;
+  }
+  function triRowX(j, nx) {
+    const xs = [];
+    if (j % 2 === 0) { for (let k = 0; k <= nx; k++) xs.push(k); }
+    else { xs.push(0); for (let k = 0; k < nx; k++) xs.push(k + 0.5); xs.push(nx); }
+    return xs;
+  }
+  function zipper(B, T, bx, tx) {
+    const out = [];
+    let ib = 0, it = 0;
+    while (!(ib === B.length - 1 && it === T.length - 1)) {
+      const up = ib === B.length - 1 || (it < T.length - 1 && tx[it] + tx[it + 1] < bx[ib] + bx[ib + 1]);
+      if (up) { out.push([B[ib], T[it + 1], T[it]]); it++; }
+      else { out.push([B[ib], B[ib + 1], T[it]]); ib++; }
+    }
+    return out;
+  }
+  function triFit(lo, hi, cell, irr, s) {
+    const p0 = cell * PITCH.TRI, W = sub(hi, lo);
+    const nx = Math.max(1, fsRound(W[0] / p0)), ny = Math.max(1, fsRound(W[1] / (p0 * Math.sqrt(3) / 2)));
+    const px = W[0] / nx, h = W[1] / ny, a = clamp01(irr) * JITTER.TRI * Math.min(px, 2 * h / Math.sqrt(3));
+    const R = [];
+    for (let j = 0; j <= ny; j++) {
+      const xs = triRowX(j, nx), row = [];
+      for (let k = 0; k < xs.length; k++) {
+        const d = mul(jitter(k, j, a, s), Math.min(1, xs[k], nx - xs[k]));
+        row.push([lo[0] + xs[k] * px + d[0], lo[1] + j * h + (j === 0 || j === ny ? 0 : d[1])]);
+      }
+      R.push(row);
+    }
+    let out = [];
+    for (let j = 0; j < ny; j++) out = out.concat(zipper(R[j], R[j + 1], triRowX(j, nx), triRowX(j + 1, nx)));
+    return out;
+  }
+  function hexRowX(j, nx) {
+    const xs = [];
+    if (j % 2 === 0) for (let k = 0; k < nx; k++) xs.push(k + 0.5);
+    else for (let k = 0; k <= nx; k++) xs.push(k);
+    return xs;
+  }
+  function hexSeeds(lo, hi, cell, irr, s) {
+    const p0 = cell * PITCH.HEX, W = sub(hi, lo);
+    const nx = Math.max(1, fsRound(W[0] / p0)), ny = Math.max(1, fsRound(W[1] / (p0 * Math.sqrt(3) / 2)));
+    const px = W[0] / nx, h = W[1] / ny, a = clamp01(irr) * JITTER.HEX * Math.min(px, 2 * h / Math.sqrt(3));
+    const S = [];
+    for (let j = 0; j < ny; j++) {
+      const xs = hexRowX(j, nx), row = [];
+      for (let k = 0; k < xs.length; k++) {
+        const d = jitter(k, j, a, s), wall = xs[k] === 0 || xs[k] === nx;
+        row.push([lo[0] + xs[k] * px + (wall ? 0 : d[0]), lo[1] + (j + 0.5) * h + d[1]]);
+      }
+      S.push(row);
+    }
+    return { S, nx, ny, px, h, a };
+  }
+  function voronoiFit(lo, hi, cell, irr, s) {
+    const { S, ny, px, h, a } = hexSeeds(lo, hi, cell, irr, s);
+    const rc = Math.max((h * h + px * px / 4) / (2 * h), Math.hypot(px, h) / 2) + 2 * a + 1e-6;
+    const dj = Math.ceil((2 * rc + 2 * a) / h) + 1, out = [];
+    for (let j = 0; j < ny; j++) for (let k = 0; k < S[j].length; k++) {
+      const sd = S[j][k], nbrs = [];
+      for (let jj = Math.max(0, j - dj); jj <= Math.min(ny - 1, j + dj); jj++)
+        for (let kk = 0; kk < S[jj].length; kk++)
+          if (!(jj === j && kk === k) && vlen(sub(S[jj][kk], sd)) < 2 * rc) nbrs.push(S[jj][kk]);
+      const b0 = [Math.max(lo[0], sd[0] - rc), Math.max(lo[1], sd[1] - rc)];
+      const b1 = [Math.min(hi[0], sd[0] + rc), Math.min(hi[1], sd[1] + rc)];
+      const c = clipAll([b0, [b1[0], b0[1]], b1, [b0[0], b1[1]]], sd, nbrs);
+      if (c.length >= 3) out.push(c);
+    }
+    return out;
+  }
+  function fitCells(shape, lo, hi, cell, irr, s) {
+    if (shape === "TRI") return triFit(lo, hi, cell, irr, s);
+    if (shape === "HEX") return voronoiFit(lo, hi, cell, irr, s);
+    return quadFit(lo, hi, cell, irr, s);
+  }
+
+  // ---------------------------------------------------------------- free Voronoi (relaxed styles)
+  //
+  // Voronoi cells of arbitrary seeds, each clipped to the rectangle lo..hi.
+  // A cell is final once every remaining seed is more than twice the cell's
+  // reach away -- the standard security-radius test -- so no neighbour is
+  // ever missed and no two cells overlap.
+  function voronoiOf(seeds, lo, hi) {
+    const n = seeds.length;
+    if (!n) return [];
+    const area = (hi[0] - lo[0]) * (hi[1] - lo[1]);
+    const g = Math.max(Math.sqrt(area / n), 1e-3);
+    const grid = new Map(), key = (x, y) => x + "," + y;
+    seeds.forEach((q, i) => {
+      const k = key(Math.floor(q[0] / g), Math.floor(q[1] / g));
+      if (!grid.has(k)) grid.set(k, []);
+      grid.get(k).push(i);
+    });
+    const span = Math.ceil(Math.hypot(hi[0] - lo[0], hi[1] - lo[1]) / g) + 2;
+    const cells = [];
+    for (let i = 0; i < n; i++) {
+      const s = seeds[i], gx = Math.floor(s[0] / g), gy = Math.floor(s[1] / g);
+      let cell = [[lo[0], lo[1]], [hi[0], lo[1]], [hi[0], hi[1]], [lo[0], hi[1]]];
+      // Rings of buckets outward; a ring k buckets out holds no seed nearer
+      // than (k - 1) * g, so stop once that exceeds twice the reach.
+      for (let k = 0; k <= span && cell.length >= 3; k++) {
+        let reach = 0;
+        for (const q of cell) reach = Math.max(reach, vlen(sub(q, s)));
+        if ((k - 1) * g > 2 * reach) break;
+        const ring = [];
+        for (let x = gx - k; x <= gx + k; x++) for (let y = gy - k; y <= gy + k; y++) {
+          if (Math.max(Math.abs(x - gx), Math.abs(y - gy)) !== k) continue;
+          const b = grid.get(key(x, y));
+          if (b) for (const j of b) if (j !== i) ring.push(seeds[j]);
+        }
+        ring.sort((p, q) => vlen(sub(p, s)) - vlen(sub(q, s)));
+        for (const q of ring) {
+          if (vlen(sub(q, s)) < 1e-9) continue;
+          cell = clipHalf(cell, mul(add(s, q), 0.5), sub(q, s));
+          if (cell.length < 3) break;
+        }
+      }
+      cells.push(cell.length >= 3 ? cell : null);
+    }
+    return cells;
+  }
+
+  function dedupe(seeds) {
+    const out = [], seen = new Set();
+    for (const q of seeds) {
+      const k = Math.round(q[0] * 1e6) + "," + Math.round(q[1] * 1e6);
+      if (!seen.has(k)) { seen.add(k); out.push(q); }
+    }
+    return out;
+  }
+  const inside = (q, lo, hi) => q[0] > lo[0] && q[0] < hi[0] && q[1] > lo[1] && q[1] < hi[1];
+
+  function rosetteSeeds(lo, hi, cell, irr, s, obstacles, border) {
+    const out = [], rings = [];
+    obstacles.forEach((o, k) => {
+      const R = o.r + border + cell * 0.55, n = Math.max(5, Math.round(2 * Math.PI * R / cell));
+      const t0 = 360 * hash01(k * 31 + 7, s);
+      for (let m = 0; m < n; m++) {
+        const a = (t0 + 360 * m / n) * D2R, q = [o.x + R * Math.cos(a), o.y + R * Math.sin(a)];
+        if (inside(q, lo, hi)) out.push(q);
+      }
+      rings.push([o.x, o.y, R + cell * 0.5]);
+    });
+    const { S } = hexSeeds(lo, hi, cell, irr, s);
+    for (const row of S) for (const q of row)
+      if (rings.every(([x, y, R]) => Math.hypot(q[0] - x, q[1] - y) > R)) out.push(q);
+    return out;
+  }
+
+  // ---------------------------------------------------------------- face outline
+  function sampleArc(c, r, t0, t1) {
+    const ang = Math.abs((t1 - t0) * D2R);
+    const step = r > SAG ? 2 * Math.acos(Math.max(-1, 1 - SAG / r)) : ang;
+    const n = Math.max(2, Math.ceil(ang / step)), pts = [];
+    for (let k = 0; k <= n; k++) {
+      const a = (t0 + (t1 - t0) * (k / n)) * D2R;
+      pts.push([c[0] + r * Math.cos(a), c[1] + r * Math.sin(a)]);
+    }
+    return pts;
+  }
+  // Outer loop counter-clockwise, edges in the same order and sampling as
+  // fsmirror.rounded_rect, so the two can be compared exactly.
+  function plateLoop(W, H, rr) {
+    const edges = [];
+    if (rr <= 0) {
+      edges.push([[0, 0], [W, 0]], [[W, 0], [W, H]], [[W, H], [0, H]], [[0, H], [0, 0]]);
+    } else {
+      edges.push([[rr, 0], [W - rr, 0]], sampleArc([W - rr, rr], rr, -90, 0),
+                 [[W, rr], [W, H - rr]], sampleArc([W - rr, H - rr], rr, 0, 90),
+                 [[W - rr, H], [rr, H]], sampleArc([rr, H - rr], rr, 90, 180),
+                 [[0, H - rr], [0, rr]], sampleArc([rr, rr], rr, 180, 270));
+    }
+    let pts = [];
+    for (const e of edges) pts = pts.concat(e.slice(0, -1));
+    return { pts, sag: rr > 0 ? SAG : 0 };
+  }
+  // A screw hole runs clockwise, keeping the face on its left.
+  const holeLoop = (o) => { const p = sampleArc([o.x, o.y], o.r, 360, 0); return { pts: p.slice(0, -1), sag: SAG }; };
+
+  function convexHull(pts) {
+    const p = pts.slice().sort((a, b) => (a[0] !== b[0] ? a[0] - b[0] : a[1] - b[1]));
+    if (p.length <= 2) return p;
+    const lower = [], upper = [];
+    for (const q of p) {
+      while (lower.length >= 2 && cross2(sub(lower[lower.length - 1], lower[lower.length - 2]), sub(q, lower[lower.length - 1])) <= 0) lower.pop();
+      lower.push(q);
+    }
+    for (let k = p.length - 1; k >= 0; k--) {
+      const q = p[k];
+      while (upper.length >= 2 && cross2(sub(upper[upper.length - 1], upper[upper.length - 2]), sub(q, upper[upper.length - 1])) <= 0) upper.pop();
+      upper.push(q);
+    }
+    return lower.slice(0, -1).concat(upper.slice(0, -1));
+  }
+
+  function buildRegion(loops, gs) {
+    const R = { segs: [], inners: [], lo: [Infinity, Infinity], hi: [-Infinity, -Infinity], grid: new Map(), gs };
+    for (const lp of loops) {
+      for (const q of lp.pts) {
+        R.lo = [Math.min(R.lo[0], q[0]), Math.min(R.lo[1], q[1])];
+        R.hi = [Math.max(R.hi[0], q[0]), Math.max(R.hi[1], q[1])];
+      }
+      let inner = -1;
+      if (signedArea(lp.pts) < 0) {
+        const hull = convexHull(lp.pts);
+        R.inners.push({ hull, sag: lp.sag });
+        inner = R.inners.length - 1;
+      }
+      for (let k = 0; k < lp.pts.length; k++)
+        R.segs.push({ a: lp.pts[k], b: lp.pts[(k + 1) % lp.pts.length], sag: lp.sag, inner });
+    }
+    R.segs.forEach((sg, idx) => {
+      for (let gx = Math.floor(Math.min(sg.a[0], sg.b[0]) / gs); gx <= Math.floor(Math.max(sg.a[0], sg.b[0]) / gs); gx++)
+        for (let gy = Math.floor(Math.min(sg.a[1], sg.b[1]) / gs); gy <= Math.floor(Math.max(sg.a[1], sg.b[1]) / gs); gy++) {
+          const k = gx + "," + gy;
+          if (!R.grid.has(k)) R.grid.set(k, []);
+          R.grid.get(k).push(idx);
+        }
+    });
+    return R;
+  }
+  function segDist(p, a, b) {
+    const ab = sub(b, a), L2 = dot(ab, ab);
+    const t = L2 === 0 ? 0 : Math.max(0, Math.min(1, dot(sub(p, a), ab) / L2));
+    return vlen(sub(p, add(a, mul(ab, t))));
+  }
+  function nearSegments(R, c, reach) {
+    const found = new Set();
+    for (let gx = Math.floor((c[0] - reach) / R.gs); gx <= Math.floor((c[0] + reach) / R.gs); gx++)
+      for (let gy = Math.floor((c[1] - reach) / R.gs); gy <= Math.floor((c[1] + reach) / R.gs); gy++) {
+        const b = R.grid.get(gx + "," + gy);
+        if (b) for (const idx of b)
+          if (!found.has(idx) && segDist(c, R.segs[idx].a, R.segs[idx].b) < reach) found.add(idx);
+      }
+    return Array.from(found).sort((x, y) => x - y);
+  }
+  function insideRegion(R, p) {
+    const gy = Math.floor(p[1] / R.gs), seen = new Set();
+    let crossings = 0;
+    for (let gx = Math.floor(p[0] / R.gs); gx <= Math.floor(R.hi[0] / R.gs); gx++) {
+      const b = R.grid.get(gx + "," + gy);
+      if (!b) continue;
+      for (const idx of b) {
+        if (seen.has(idx)) continue;
+        seen.add(idx);
+        const { a, b: e } = R.segs[idx];
+        if ((a[1] > p[1]) !== (e[1] > p[1])) {
+          const x = a[0] + (p[1] - a[1]) * (e[0] - a[0]) / (e[1] - a[1]);
+          if (x > p[0]) crossings++;
+        }
+      }
+    }
+    return crossings % 2 === 1;
+  }
+  function nearestOnLoop(pts, c) {
+    if (pts.length === 1) return pts[0];
+    let bestD = Infinity, best = pts[0];
+    for (let k = 0; k < pts.length; k++) {
+      const a = pts[k], ab = sub(pts[(k + 1) % pts.length], a), L2 = dot(ab, ab);
+      const t = L2 === 0 ? 0 : Math.max(0, Math.min(1, dot(sub(c, a), ab) / L2));
+      const p = add(a, mul(ab, t));
+      if (vlen(sub(c, p)) < bestD) { bestD = vlen(sub(c, p)); best = p; }
+    }
+    return best;
+  }
+  // One straight cut that keeps a core clear of an inner loop's hull by
+  // `clearance`; of several safe directions, the one that keeps the most.
+  function innerClip(core, c, hull, clearance) {
+    const n = hull.length, cands = [];
+    let ins = n >= 3;
+    for (let k = 0; k < n; k++) if (cross2(sub(hull[(k + 1) % n], hull[k]), sub(c, hull[k])) < 0) ins = false;
+    if (!ins) {
+      const q = nearestOnLoop(hull, c);
+      if (vlen(sub(c, q)) > EPS) cands.push(unit(sub(c, q)));
+    }
+    if (n >= 3) for (let k = 0; k < n; k++) {
+      const e = sub(hull[(k + 1) % n], hull[k]);
+      if (vlen(e) > EPS) { const t = unit(e); cands.push([t[1], -t[0]]); }
+    }
+    let best = [], bestArea = 0;
+    for (const u of cands) {
+      let support = -Infinity;
+      for (const q of hull) support = Math.max(support, dot(q, u));
+      const kept = clipHalf(core, mul(u, support + clearance), mul(u, -1));
+      const area = kept.length >= 3 ? Math.abs(signedArea(kept)) : 0;
+      if (area > bestArea) { best = kept; bestArea = area; }
+    }
+    return best;
+  }
+  // Clip a convex polygon to the face, `clearance` in from every edge.
+  function regionClip(core, c, R, clearance, reach) {
+    const near = nearSegments(R, c, reach), ins = insideRegion(R, c);
+    if (!near.length) return ins ? core : [];
+    const seen = new Set();
+    for (const idx of near) {
+      const sg = R.segs[idx];
+      if (sg.inner < 0) {
+        if (ins && cross2(sub(sg.b, sg.a), sub(c, sg.a)) <= 0) continue;
+        core = clipLeftOf(core, sg.a, sg.b, clearance + sg.sag);
+      } else if (!seen.has(sg.inner)) {
+        seen.add(sg.inner);
+        const L = R.inners[sg.inner];
+        core = innerClip(core, c, L.hull, clearance + L.sag);
+      }
+      if (core.length < 3) return [];
+    }
+    return core;
+  }
+  function holeCore(cell, R, rib, r, border, keepR) {
+    const c = centroid(cell);
+    let core = insetConvex(cell, rib / 2 + r);
+    if (!core.length) return [];
+    let cellR = 0;
+    for (const q of cell) cellR = Math.max(cellR, vlen(sub(q, c)));
+    core = regionClip(core, c, R, border + r, cellR + border + r + SAG + 1e-6);
+    if (core.length < 3) return [];
+    core = tidy(ccw(core));
+    if (!core.length) return [];
+    if (keepR > r && !insetConvex(core, keepR - r).length) return [];
+    return core;
+  }
+
+  // ---------------------------------------------------------------- the plan
+  //
+  // p: { W, H, rr, border, shape, style, cell, rib, irr, corner, minHole, seed,
+  //      fit, obstacles: [{x, y, r}], iterations }
+  function plan(p) {
+    const hw = p.cell * PITCH[p.shape] * ACROSS[p.shape] - p.rib;
+    if (hw <= 0.1) return { error: "The rib is too thick for this cell size. Raise the cell size or thin the rib.", cores: [] };
+    let r = Math.min(p.corner, 0.4 * hw);
+    const keepR = Math.min(p.minHole / 2, 0.4 * hw);
+    const notes = [];
+    if (r < p.corner - 1e-9) notes.push("corner radius limited to " + r.toFixed(2) + " mm");
+    if (keepR < p.minHole / 2 - 1e-9) notes.push("smallest hole limited to " + (2 * keepR).toFixed(2) + " mm");
+    if (r < MIN_RADIUS) r = 0;
+    const bw = Math.max(p.border, p.rib);
+    const rr = Math.max(0, Math.min(p.rr, Math.min(p.W, p.H) / 2 - 1e-6));
+    const outer = plateLoop(p.W, p.H, rr);
+    const loops = [outer].concat(p.obstacles.map(holeLoop));
+    const R = buildRegion(loops, Math.max(p.cell * PITCH[p.shape], 1));
+    const ins = bw - p.rib / 2;
+    const lo = add(R.lo, [ins, ins]), hi = sub(R.hi, [ins, ins]);
+    let cells = [];
+    const relaxed = p.shape === "HEX" && (p.style === "relaxed" || p.style === "rosette");
+    if (hi[0] > lo[0] && hi[1] > lo[1]) {
+      if (relaxed) cells = relaxedCells(p, R, lo, hi, bw);
+      else if (p.fit === false) cells = cropCells(p.shape, R.lo, R.hi, p.cell, p.irr, p.seed);
+      else cells = fitCells(p.shape, lo, hi, p.cell, p.irr, p.seed);
+    }
+    const cores = [];
+    for (const c of cells) {
+      const k = holeCore(c, R, p.rib, r, bw, keepR);
+      if (k.length) cores.push(k);
+    }
+    return { cores, r, keepR, border: bw, hw, notes, outer, rr, loops };
+  }
+
+  // Lloyd relaxation: move each seed to the centroid of its cell, as far as
+  // the cell lies inside the face and clear of the obstacles. Only where the
+  // seeds go changes; the holes are cut from the final cells exactly as in
+  // classic style, so the rib and border guarantees are untouched.
+  function relaxedCells(p, R, lo, hi, bw) {
+    let seeds = p.style === "rosette"
+      ? rosetteSeeds(lo, hi, p.cell, p.irr, p.seed, p.obstacles, bw)
+      : [].concat(...hexSeeds(lo, hi, p.cell, p.irr, p.seed).S);
+    const iters = p.iterations != null ? p.iterations : (p.style === "rosette" ? 5 : 8);
+    const zoneClear = bw - p.rib / 2;
+    for (let it = 0; it < iters; it++) {
+      seeds = dedupe(seeds.filter((q) => inside(q, lo, hi)));
+      const cells = voronoiOf(seeds, lo, hi), next = [];
+      cells.forEach((cell) => {
+        if (!cell) return;
+        const c = centroid(cell);
+        let reach = 0;
+        for (const q of cell) reach = Math.max(reach, vlen(sub(q, c)));
+        const z = regionClip(cell, c, R, zoneClear, reach + zoneClear + SAG + 1e-6);
+        if (z.length >= 3 && Math.abs(signedArea(z)) > 0.5) next.push(areaCentroid(z));
+      });
+      seeds = next;
+    }
+    seeds = dedupe(seeds.filter((q) => inside(q, lo, hi)));
+    return voronoiOf(seeds, lo, hi).filter(Boolean);
+  }
+
+  // ---------------------------------------------------------------- outlines
+  // The hole outline: core edges pushed out by r, joined by arcs of radius r.
+  function outline(core, r) {
+    const n = core.length;
+    if (r <= 0) return core.map((a, k) => ({ t: "line", a, b: core[(k + 1) % n] }));
+    const normals = core.map((a, k) => { const t = unit(sub(core[(k + 1) % n], a)); return [t[1], -t[0]]; });
+    const ents = [];
+    for (let k = 0; k < n; k++) {
+      const a = core[k], b = core[(k + 1) % n], nk = normals[k], nn = normals[(k + 1) % n];
+      ents.push({ t: "line", a: add(a, mul(nk, r)), b: add(b, mul(nk, r)) });
+      ents.push({ t: "arc", c: b, r, a0: Math.atan2(nk[1], nk[0]), a1: Math.atan2(nn[1], nn[0]),
+                  start: add(b, mul(nk, r)), end: add(b, mul(nn, r)) });
+    }
+    return ents;
+  }
+  function arcSweep(e) { let d = e.a1 - e.a0; while (d < 0) d += 2 * Math.PI; return d; }
+  function holePolygon(core, r, sag) {
+    if (r <= 0) return core.slice();
+    const pts = [];
+    for (const e of outline(core, r)) {
+      if (e.t === "line") { pts.push(e.a); continue; }
+      const sw = arcSweep(e), step = 2 * Math.acos(Math.max(-1, 1 - sag / r));
+      const n = Math.max(1, Math.ceil(sw / step));
+      for (let k = 0; k < n; k++) {
+        const a = e.a0 + sw * k / n;
+        pts.push([e.c[0] + r * Math.cos(a), e.c[1] + r * Math.sin(a)]);
+      }
+    }
+    return pts;
+  }
+  function holeArea(core, r) {
+    let per = 0;
+    for (let k = 0; k < core.length; k++) per += vlen(sub(core[(k + 1) % core.length], core[k]));
+    return Math.abs(signedArea(core)) + per * r + Math.PI * r * r;
+  }
+
+  // Thinnest web and border, measured on sampled outlines (chords sit inside
+  // arcs, so this can only read high by the sampling error, here 0.002mm).
+  function polyDist(P, Q) {
+    let d = Infinity;
+    for (let i = 0; i < P.length; i++) {
+      const a = P[i], b = P[(i + 1) % P.length];
+      for (let j = 0; j < Q.length; j++) d = Math.min(d, segDist(Q[j], a, b));
+    }
+    for (let j = 0; j < Q.length; j++) {
+      const a = Q[j], b = Q[(j + 1) % Q.length];
+      for (let i = 0; i < P.length; i++) d = Math.min(d, segDist(P[i], a, b));
+    }
+    return d;
+  }
+  function measure(pl, p) {
+    const polys = pl.cores.map((c) => holePolygon(c, pl.r, 0.002));
+    const boxes = polys.map((P) => {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const q of P) { x0 = Math.min(x0, q[0]); y0 = Math.min(y0, q[1]); x1 = Math.max(x1, q[0]); y1 = Math.max(y1, q[1]); }
+      return [x0, y0, x1, y1];
+    });
+    let rib = Infinity, border = Infinity;
+    const lim = 3 * p.rib + 1;
+    for (let i = 0; i < polys.length; i++) {
+      for (let j = i + 1; j < polys.length; j++) {
+        const A = boxes[i], B = boxes[j];
+        if (A[0] - B[2] > lim || B[0] - A[2] > lim || A[1] - B[3] > lim || B[1] - A[3] > lim) continue;
+        rib = Math.min(rib, polyDist(polys[i], polys[j]));
+      }
+    }
+    for (const lp of pl.loops) for (const P of polys) border = Math.min(border, polyDist(P, lp.pts));
+    let open = 0;
+    for (const c of pl.cores) open += holeArea(c, pl.r);
+    let face = p.W * p.H - (4 - Math.PI) * pl.rr * pl.rr;
+    for (const o of p.obstacles) face -= Math.PI * o.r * o.r;
+    return { holes: pl.cores.length, rib, border, open: 100 * open / face };
+  }
+
+  // ---------------------------------------------------------------- exports
+  const f3 = (x) => (Math.abs(x) < 5e-7 ? "0" : x.toFixed(6).replace(/\.?0+$/, ""));
+
+  function plateEntities(W, H, rr) {
+    if (rr <= 0) return [[0, 0], [W, 0], [W, H], [0, H]].map((a, k, A) => ({ t: "line", a, b: A[(k + 1) % 4] }));
+    const L = (a, b) => ({ t: "line", a, b });
+    const A = (c, d0, d1) => ({ t: "arc", c, r: rr, a0: d0 * D2R, a1: d1 * D2R,
+      start: [c[0] + rr * Math.cos(d0 * D2R), c[1] + rr * Math.sin(d0 * D2R)],
+      end: [c[0] + rr * Math.cos(d1 * D2R), c[1] + rr * Math.sin(d1 * D2R)] });
+    return [L([rr, 0], [W - rr, 0]), A([W - rr, rr], -90, 0), L([W, rr], [W, H - rr]), A([W - rr, H - rr], 0, 90),
+            L([W - rr, H], [rr, H]), A([rr, H - rr], 90, 180), L([0, H - rr], [0, rr]), A([rr, rr], 180, 270)];
+  }
+  function svgPathOf(ents) {
+    let d = "M" + f3(ents[0].t === "line" ? ents[0].a[0] : ents[0].start[0]) + " " + f3(ents[0].t === "line" ? ents[0].a[1] : ents[0].start[1]);
+    for (const e of ents) {
+      if (e.t === "line") d += "L" + f3(e.b[0]) + " " + f3(e.b[1]);
+      else d += "A" + f3(e.r) + " " + f3(e.r) + " 0 " + (arcSweep(e) > Math.PI ? 1 : 0) + " 1 " + f3(e.end[0]) + " " + f3(e.end[1]);
+    }
+    return d + "Z";
+  }
+  function circlePath(o) {
+    return "M" + f3(o.x + o.r) + " " + f3(o.y) + "A" + f3(o.r) + " " + f3(o.r) + " 0 1 1 " + f3(o.x - o.r) + " " + f3(o.y) +
+           "A" + f3(o.r) + " " + f3(o.r) + " 0 1 1 " + f3(o.x + o.r) + " " + f3(o.y) + "Z";
+  }
+  // Cut-line SVG in millimetres. Paths are written y-up and flipped once.
+  function toSVG(pl, p) {
+    const parts = [svgPathOf(plateEntities(p.W, p.H, pl.rr))];
+    for (const o of p.obstacles) parts.push(circlePath(o));
+    for (const c of pl.cores) parts.push(svgPathOf(outline(c, pl.r)));
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' +
+      '<svg xmlns="http://www.w3.org/2000/svg" width="' + f3(p.W) + 'mm" height="' + f3(p.H) + 'mm" viewBox="0 0 ' + f3(p.W) + " " + f3(p.H) + '">\n' +
+      '<g transform="translate(0 ' + f3(p.H) + ') scale(1 -1)" fill="none" stroke="#000" stroke-width="0.1">\n' +
+      parts.map((d) => '<path d="' + d + '"/>').join("\n") + "\n</g>\n</svg>\n";
+  }
+  // DXF R12: true LINE and ARC entities, millimetres.
+  function toDXF(pl, p) {
+    const out = ["0", "SECTION", "2", "HEADER", "9", "$ACADVER", "1", "AC1009", "9", "$INSUNITS", "70", "4", "0", "ENDSEC",
+                 "0", "SECTION", "2", "ENTITIES"];
+    const line = (a, b, layer) => out.push("0", "LINE", "8", layer, "10", f3(a[0]), "20", f3(a[1]), "30", "0", "11", f3(b[0]), "21", f3(b[1]), "31", "0");
+    const arc = (e, layer) => {
+      let s = e.a0 / D2R, t = e.a1 / D2R;
+      s = ((s % 360) + 360) % 360; t = ((t % 360) + 360) % 360;
+      out.push("0", "ARC", "8", layer, "10", f3(e.c[0]), "20", f3(e.c[1]), "30", "0", "40", f3(e.r), "50", f3(s), "51", f3(t));
+    };
+    const emit = (ents, layer) => { for (const e of ents) e.t === "line" ? line(e.a, e.b, layer) : arc(e, layer); };
+    emit(plateEntities(p.W, p.H, pl.rr), "OUTLINE");
+    for (const o of p.obstacles) out.push("0", "CIRCLE", "8", "SCREWS", "10", f3(o.x), "20", f3(o.y), "30", "0", "40", f3(o.r));
+    for (const c of pl.cores) emit(outline(c, pl.r), "VENTS");
+    out.push("0", "ENDSEC", "0", "EOF");
+    return out.join("\n") + "\n";
+  }
+  // Binary STL of the plate, through holes and all. Every ring keeps the
+  // material on its left: outline counter-clockwise, holes clockwise.
+  function toSTL(pl, p, earcut) {
+    const rings = [pl.outer.pts.slice()];
+    for (const lp of pl.loops.slice(1)) rings.push(lp.pts.slice());
+    for (const c of pl.cores) rings.push(holePolygon(c, pl.r, 0.005).reverse());
+    const flat = [], holeIdx = [];
+    let count = 0;
+    rings.forEach((ring, k) => {
+      if (k > 0) holeIdx.push(count);
+      for (const q of ring) { flat.push(q[0], q[1]); count++; }
+    });
+    const tri = earcut(flat, holeIdx, 2);
+    const t = p.thick, tris = [];
+    const P = (i) => [flat[2 * i], flat[2 * i + 1]];
+    for (let k = 0; k < tri.length; k += 3) {
+      let a = P(tri[k]), b = P(tri[k + 1]), c = P(tri[k + 2]);
+      if (cross2(sub(b, a), sub(c, a)) < 0) { const x = b; b = c; c = x; }
+      tris.push([[a[0], a[1], t], [b[0], b[1], t], [c[0], c[1], t]]);       // top, normal +z
+      tris.push([[a[0], a[1], 0], [c[0], c[1], 0], [b[0], b[1], 0]]);       // bottom, normal -z
+    }
+    for (const ring of rings) for (let k = 0; k < ring.length; k++) {
+      const a = ring[k], b = ring[(k + 1) % ring.length];
+      // material on the left, so the outward side is on the right
+      tris.push([[a[0], a[1], 0], [b[0], b[1], 0], [b[0], b[1], t]]);
+      tris.push([[a[0], a[1], 0], [b[0], b[1], t], [a[0], a[1], t]]);
+    }
+    const buf = new ArrayBuffer(84 + 50 * tris.length), dv = new DataView(buf);
+    const head = "LEOPARD VENT binary STL, millimetres";
+    for (let i = 0; i < head.length; i++) dv.setUint8(i, head.charCodeAt(i));
+    dv.setUint32(80, tris.length, true);
+    let o = 84;
+    for (const T of tris) {
+      const u = [T[1][0] - T[0][0], T[1][1] - T[0][1], T[1][2] - T[0][2]], v = [T[2][0] - T[0][0], T[2][1] - T[0][1], T[2][2] - T[0][2]];
+      const nrm = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]], L = Math.hypot(...nrm) || 1;
+      for (const x of nrm) { dv.setFloat32(o, x / L, true); o += 4; }
+      for (const q of T) for (const x of q) { dv.setFloat32(o, x, true); o += 4; }
+      dv.setUint16(o, 0, true); o += 2;
+    }
+    return buf;
+  }
+  // Minimal zip (stored, no compression): the download allowlist takes .zip
+  // but not .dxf or .stl.
+  const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  function crc32(u8) { let c = 0xffffffff; for (let i = 0; i < u8.length; i++) c = CRC[(c ^ u8[i]) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; }
+  function zip(files) {
+    const enc = new TextEncoder(), parts = [], central = [];
+    let offset = 0;
+    for (const f of files) {
+      const name = enc.encode(f.name), data = typeof f.data === "string" ? enc.encode(f.data) : new Uint8Array(f.data);
+      const crc = crc32(data), lh = new DataView(new ArrayBuffer(30));
+      lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, 0, true);
+      lh.setUint16(10, 0, true); lh.setUint16(12, 0x21, true); lh.setUint32(14, crc, true);
+      lh.setUint32(18, data.length, true); lh.setUint32(22, data.length, true); lh.setUint16(26, name.length, true); lh.setUint16(28, 0, true);
+      parts.push(new Uint8Array(lh.buffer), name, data);
+      const ch = new DataView(new ArrayBuffer(46));
+      ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true);
+      ch.setUint16(10, 0, true); ch.setUint16(12, 0, true); ch.setUint16(14, 0x21, true); ch.setUint32(16, crc, true);
+      ch.setUint32(20, data.length, true); ch.setUint32(24, data.length, true); ch.setUint16(28, name.length, true);
+      ch.setUint16(30, 0, true); ch.setUint16(32, 0, true); ch.setUint16(34, 0, true); ch.setUint16(36, 0, true);
+      ch.setUint32(38, 0, true); ch.setUint32(42, offset, true);
+      central.push(new Uint8Array(ch.buffer), name);
+      offset += 30 + name.length + data.length;
+    }
+    const csize = central.reduce((s, a) => s + a.length, 0), end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
+    end.setUint32(12, csize, true); end.setUint32(16, offset, true);
+    const all = parts.concat(central, [new Uint8Array(end.buffer)]), total = all.reduce((s, a) => s + a.length, 0);
+    const out = new Uint8Array(total);
+    let at = 0;
+    for (const a of all) { out.set(a, at); at += a.length; }
+    return out;
+  }
+
+  return { plan, measure, outline, holePolygon, holeArea, toSVG, toDXF, toSTL, zip, svgPathOf, plateEntities, circlePath,
+           _: { hash01, fitCells, cropCells, holeCore, buildRegion, plateLoop, holeLoop, voronoiOf } };
+})();
+if (typeof module !== "undefined") module.exports = LV;
+</script>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const S = {
+    shape: "HEX", style: "relaxed", seed: 3, screw: 4.5,
+    obstacles: [{ x: 10, y: 10, r: 2.25 }, { x: 130, y: 10, r: 2.25 }, { x: 10, y: 80, r: 2.25 }, { x: 130, y: 80, r: 2.25 }, { x: 70, y: 45, r: 10 }]
+  };
+  const sliders = { cell: [" mm", 1], rib: [" mm", 1], irr: ["", 2], corner: [" mm", 2], minhole: [" mm", 1],
+                    w: [" mm", 0], h: [" mm", 0], rr: [" mm", 1], border: [" mm", 1], thick: [" mm", 1] };
+  let current = null, pending = 0;
+
+  function params() {
+    const v = (id) => parseFloat($(id).value);
+    return { W: v("w"), H: v("h"), rr: v("rr"), border: v("border"), thick: v("thick"), shape: S.shape, style: S.style,
+             cell: v("cell"), rib: v("rib"), irr: v("irr"), corner: v("corner"), minHole: v("minhole"), seed: S.seed,
+             fit: true, obstacles: usableObstacles(v("w"), v("h")) };
+  }
+  function usableObstacles(W, H) {
+    return S.obstacles.filter((o) => o.x - o.r > 0.5 && o.y - o.r > 0.5 && o.x + o.r < W - 0.5 && o.y + o.r < H - 0.5);
+  }
+
+  function syncButtons() {
+    for (const b of $("shape").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.v === S.shape));
+    for (const b of $("style").querySelectorAll("button")) {
+      b.setAttribute("aria-pressed", String(b.dataset.v === (S.shape === "HEX" ? S.style : "classic")));
+      b.disabled = S.shape !== "HEX" && b.dataset.v !== "classic";
+    }
+    for (const b of $("screw").querySelectorAll("button")) b.setAttribute("aria-pressed", String(parseFloat(b.dataset.v) === S.screw));
+    $("style-note").textContent = S.shape === "HEX" ? "" : "Relaxed and Rosette work on 6-sided cells.";
+    $("seed-chip").innerHTML = "<b>seed</b>" + S.seed;
+    for (const [id, [unit, dp]] of Object.entries(sliders)) $(id + "-o").textContent = parseFloat($(id).value).toFixed(dp) + unit;
+  }
+
+  function render() {
+    syncButtons();
+    const p = params(), t0 = performance.now();
+    const pl = LV.plan(p);
+    current = { p, pl };
+    const svg = $("preview");
+    svg.setAttribute("viewBox", [-2, -2, p.W + 4, p.H + 4].join(" "));
+    if (pl.error) {
+      svg.innerHTML = "";
+      $("readout").innerHTML = '<span class="chip warn">' + pl.error + "</span>";
+      return;
+    }
+    let d = LV.svgPathOf(LV.plateEntities(p.W, p.H, pl.rr));
+    for (const o of p.obstacles) d += LV.circlePath(o);
+    for (const c of pl.cores) d += LV.svgPathOf(LV.outline(c, pl.r));
+    const ghosts = S.obstacles.filter((o) => !p.obstacles.includes(o))
+      .map((o) => '<circle class="ghost" cx="' + o.x + '" cy="' + o.y + '" r="' + o.r + '"/>').join("");
+    svg.innerHTML = '<g transform="translate(0 ' + p.H + ') scale(1 -1)"><path class="plate" fill-rule="evenodd" d="' + d + '"/>' + ghosts + "</g>";
+    const m = LV.measure(pl, p), ms = performance.now() - t0;
+    const ok = m.rib >= p.rib - 0.005 && m.border >= pl.border - 0.005;
+    $("readout").innerHTML =
+      chip("holes", m.holes) + chip("open area", m.open.toFixed(1) + "%") +
+      '<span class="chip ' + (ok ? "ok" : "warn") + '"><b>thinnest web</b>' + (isFinite(m.rib) ? m.rib.toFixed(2) + " mm" : "n/a") + "</span>" +
+      '<span class="chip ' + (ok ? "ok" : "warn") + '"><b>closest to an edge</b>' + (isFinite(m.border) ? m.border.toFixed(2) + " mm" : "n/a") + "</span>" +
+      chip("nominal hole", "Ø" + Math.max(pl.hw, 0).toFixed(1) + " mm") +
+      (pl.notes.length ? '<span class="chip warn">' + pl.notes.join("; ") + "</span>" : "") +
+      (ms > 400 ? '<span class="chip"><b>took</b>' + (ms / 1000).toFixed(1) + " s</span>" : "");
+  }
+  const chip = (k, v) => '<span class="chip"><b>' + k + "</b>" + v + "</span>";
+  function schedule() { cancelAnimationFrame(pending); pending = requestAnimationFrame(render); }
+
+  for (const id of Object.keys(sliders)) $(id).addEventListener("input", schedule);
+  $("shape").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { S.shape = b.dataset.v; schedule(); } });
+  $("style").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b && !b.disabled) { S.style = b.dataset.v; schedule(); } });
+  $("screw").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { S.screw = parseFloat(b.dataset.v); syncButtons(); } });
+  $("reseed").addEventListener("click", () => { S.seed = 1 + Math.floor(Math.random() * 998); schedule(); });
+  $("clear").addEventListener("click", () => { S.obstacles = []; schedule(); });
+  $("corners").addEventListener("click", () => {
+    const W = parseFloat($("w").value), H = parseFloat($("h").value), r = S.screw / 2;
+    const inset = Math.max(r + 3, parseFloat($("border").value) + r);
+    const keep = S.obstacles.filter((o) => o.r * 2 > 10);
+    S.obstacles = keep.concat([[inset, inset], [W - inset, inset], [inset, H - inset], [W - inset, H - inset]].map(([x, y]) => ({ x, y, r })));
+    schedule();
+  });
+  $("preview").addEventListener("click", (e) => {
+    if (!current) return;
+    const svg = $("preview"), pt = svg.createSVGPoint();
+    pt.x = e.clientX; pt.y = e.clientY;
+    const q = pt.matrixTransform(svg.getScreenCTM().inverse()), x = q.x, y = current.p.H - q.y;
+    const hit = S.obstacles.findIndex((o) => Math.hypot(o.x - x, o.y - y) <= o.r + 2);
+    if (hit >= 0) { S.obstacles.splice(hit, 1); schedule(); return; }
+    const r = S.screw / 2;
+    if (x - r <= 0.5 || y - r <= 0.5 || x + r >= current.p.W - 0.5 || y + r >= current.p.H - 0.5) return;
+    if (S.obstacles.some((o) => Math.hypot(o.x - x, o.y - y) < o.r + r + 1)) return;
+    S.obstacles.push({ x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, r });
+    schedule();
+  });
+
+  // Files. The viewer only saves what the platform's downloads capability
+  // hands over, and asks first; anything else is a dead link.
+  let downloads = null;
+  const status = (t) => { $("status").textContent = t; };
+  function stamp() { const p = current.p; return "leopard-vent-" + p.W + "x" + p.H + "-" + p.shape.toLowerCase() + "-seed" + p.seed; }
+  function readme() {
+    const p = current.p;
+    return "LEOPARD VENT\n\nPlate " + p.W + " x " + p.H + " x " + p.thick + " mm, corner radius " + p.rr + " mm, border " + current.pl.border + " mm\n" +
+      "Cells: " + ({ TRI: "3", QUAD: "4", HEX: "6" })[p.shape] + " sides, " + (p.shape === "HEX" ? p.style : "classic") + ", cell " + p.cell + " mm, rib " + p.rib +
+      " mm, irregularity " + p.irr + ", corner radius " + p.corner + " mm, smallest hole " + p.minHole + " mm, seed " + p.seed + "\n" +
+      "Screw holes: " + (p.obstacles.map((o) => "d" + (2 * o.r) + " at (" + o.x + ", " + o.y + ")").join("; ") || "none") + "\n\n" +
+      "Coordinates in millimetres, origin at the plate's bottom-left corner.\n";
+  }
+  async function save(filename, data) {
+    if (!downloads) { status("Saving files is not available in this view. Use Copy DXF instead."); return; }
+    try { await downloads.save({ filename, data }); status("Saved " + filename + "."); }
+    catch (err) {
+      const code = err && err.code;
+      if (code === "declined") status("Save cancelled.");
+      else if (code === "rate_limited") status("A save prompt is already open.");
+      else if (code === "extension_not_enabled") status("Zip files can't be saved in this view. Save the SVG, or copy the DXF.");
+      else status("Couldn't save the file here. Use Copy DXF instead.");
+    }
+  }
+  $("save-svg").addEventListener("click", () => current && !current.pl.error && save(stamp() + ".svg", LV.toSVG(current.pl, current.p)));
+  $("save-zip").addEventListener("click", () => {
+    if (!current || current.pl.error) return;
+    const files = [{ name: stamp() + ".dxf", data: LV.toDXF(current.pl, current.p) },
+                   { name: stamp() + ".svg", data: LV.toSVG(current.pl, current.p) },
+                   { name: "settings.txt", data: readme() }];
+    if (typeof window.earcut === "function") files.splice(1, 0, { name: stamp() + ".stl", data: LV.toSTL(current.pl, current.p, window.earcut) });
+    else status("The STL builder did not load, so the zip has the DXF and SVG only.");
+    save(stamp() + ".zip", new Blob([LV.zip(files)], { type: "application/zip" }));
+  });
+  $("copy-dxf").addEventListener("click", async () => {
+    if (!current || current.pl.error) return;
+    const text = LV.toDXF(current.pl, current.p);
+    try { await navigator.clipboard.writeText(text); status("DXF copied. Paste it into a text file named vent.dxf."); }
+    catch (e) { status("Copying was blocked here. Use Save instead."); }
+  });
+
+  render();
+  if (window.claude && window.claude.use) {
+    window.claude.use("downloads").then((d) => { downloads = d; if (!d) { $("save-zip").disabled = true; $("save-svg").disabled = true; status("Saving files is not available in this view. Use Copy DXF instead."); } });
+  } else {
+    $("save-zip").disabled = true; $("save-svg").disabled = true;
+    status("Open this page on claude.ai to save files. Copy DXF works here.");
+  }
+})();
+</script>
