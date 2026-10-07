@@ -10,12 +10,17 @@ File: [`featurescript/leopard_vent.fs`](../featurescript/leopard_vent.fs)
 
 ![A robot side plate: before, round rings, round rings with spokes](../previews/featurescript_round_holes.png)
 
+![A robot plate: before and after this round of fixes](../previews/featurescript_robot_plate.png)
+
 ![Six face shapes](../previews/featurescript_faces.png)
 
-*Both rendered from `tools/fsmirror.py`, the Python mirror of the feature's
+*All rendered from `tools/fsmirror.py`, the Python mirror of the feature's
 geometry — not screenshots from Onshape. See "What has and has not been
-tested" below. The plate above is 260 × 110 mm with ten 5.1 mm bolt holes,
-two 22 mm bearing bores and an 8 mm hole, all at default settings.*
+tested" below. The first plate is 260 × 110 mm with ten 5.1 mm bolt holes,
+two 22 mm bearing bores and an 8 mm hole, all at default settings. The second
+is modelled on a real FRC side plate, 630 × 420 mm with about 90 bolt holes,
+a curved slot and several cutouts, with 6-sided 30 mm cells: on the left as
+the previous version cut it, on the right as this one does.*
 
 ## Status — read this first
 
@@ -34,15 +39,15 @@ had no Onshape access while writing it. Here is what that means in practice:
   FeatureScript's reserved words, and it now also enforces type annotations
   (`x is number`, `returns map`) the way Onshape does at run time, so the
   crosscheck catches both kinds of mistake.
-- **The round rings and wheels are new since that paste** and have not been
-  in Onshape at all. If the feature errors, the Feature Studio's error panel
+- **The round rings and wheels, and the handling of curved slots, are new
+  since that paste**, and have not been run in Onshape at all. If the feature errors, the Feature Studio's error panel
   gives a line number; that plus the message is enough to fix it.
 
 ## Installing
 
 1. In any Onshape document, create a **Feature Studio**.
 2. Select everything in it and paste `leopard_vent.fs` over it — **the whole
-   file**, about 1,930 lines, ending with `holeArea`. Copy it with GitHub's
+   file**, about 2,100 lines, ending with `holeArea`. Copy it with GitHub's
    "Copy raw file" button or from the downloaded file, not from a preview
    that may cut it short (a short paste shows up as
    `missing TOP_SEMI at '<EOF>'`). The file's first two lines are the ones Onshape writes for a
@@ -74,10 +79,11 @@ old straight cuts back, untick **Round rings around circular holes**.
 | Fit cells to the face | on | Stretches the cells slightly so whole cells fill the face's bounding rectangle, with edge holes running straight along it. Off: the pattern runs past the face and is cut off at the border. |
 | **Round rings around circular holes** | on | Every circular hole in the face gets a ring of material of constant width: the holes beside it have true arcs facing it. Off: one straight cut per hole, as in the first version. |
 | Ring width | 5 mm | Width of that ring, from the edge of the circle. Raised to the rib thickness if set below it. A 5 mm ring round a 5.1 mm bolt hole leaves a 15 mm boss. |
-| **Spokes from circular holes** | on | Gives each circular hole a wheel: its ring, then a ring of sector-shaped holes between straight spokes, then a hoop one rib wide that the ordinary cells meet. Off: just the ring. |
+| **Spokes from circular holes** | on | Gives each circular hole that is big enough, and has room, a wheel: its ring, then a ring of sector-shaped holes between straight spokes, then a hoop one rib wide that the ordinary cells meet. Off: just the ring. |
+| Spokes only on holes from | 10 mm | Smallest hole diameter that gets a wheel. Smaller holes — bolt holes — just get their ring: a wheel round every bolt hole on a robot plate is what made the first version a mess of chopped-up spokes. 0 puts a wheel round every round hole that has room. |
 | Spoke thickness | 3 mm | Guaranteed minimum. Raised to the rib thickness if set below it. |
 | Spoke length | 10 mm | From the ring out to the hoop: how far the wheel reaches. |
-| Spokes per hole (0 = auto) | 0 | Auto is about one spoke per cell size of circumference, halfway along the spokes, and never fewer than 3: 6 round a 5 mm bolt hole, 9 round a 22 mm bearing at the defaults. |
+| Spokes per hole (0 = auto) | 0 | Auto is about one spoke per cell size of circumference, halfway along the spokes, and never fewer than 3: 8 round a 14 mm hole, 9 round a 22 mm bearing at the defaults. |
 | Spoke angle | 90° | Direction of the first spoke, measured from the pattern direction; the rest are spread evenly round. |
 | Hole type | Through | Through the part, or a pocket of a set depth. **Through cuts everything of that part beneath each hole** — a boss or rib under the face gets cut too. Use Pocket to stop short of it. |
 | Pocket depth | 2 mm | Pocket only. Measured from the face. |
@@ -105,10 +111,16 @@ fillets. So the outline is handled in maths instead:
   facing the hole's centre are applied. Near the corner itself this trims
   holes a little more than strictly needed, never less: there is a solid
   block under the notch in the second picture.
-- **Holes already in the face that are not round** (slots, D-holes, anything
-  else) are kept clear with one straight cut per hole, chosen from several
-  candidate directions to keep the most of it. Exact alongside the straight
-  sides of a slot; conservative at its rounded ends.
+- **Holes already in the face that are not round, and convex** (straight
+  slots, rectangles, D-holes) are kept clear with one straight cut per hole,
+  chosen from several candidate directions to keep the most of it. Exact
+  alongside straight sides; conservative at a slot's rounded ends.
+- **Holes that are not convex** (a curved slot, an L-shaped cutout) are split
+  into triangles, and each pattern hole gets one straight cut per triangle
+  near it. The triangles cover the hole exactly, so the border is kept, and
+  the pattern follows the hole's real shape — including inside the curve of a
+  curved slot. The first version cut against the hole's convex hull instead,
+  which left the whole area inside a curved slot solid.
 
 Then each hole's polygon is sketched as its edges pushed out by the corner
 radius, joined by arcs of that radius. That is the exact rounded shape, not an
@@ -149,9 +161,13 @@ whichever ribs of the pattern happen to touch the ring.
 **Where it falls back, and to what.** All of these only ever leave more
 material, never less:
 
-- **Wheels that overlap a lot** would cancel out into a solid lump, so where
-  one circle's centre lies inside another's wheel, the larger circle keeps its
-  wheel and the smaller one keeps only its ring, inside it.
+- **Small holes get no wheel** — under *Spokes only on holes from*, 10 mm by
+  default — just their ring.
+- **Wheels with no room.** Two wheels overlapping by more than a spoke
+  length would chop each other into fragments. Between holes of like size
+  (neither 1.5 times the other's diameter) neither gets a wheel, so a row of
+  holes just gets rings. Between a big hole and a small one, the big one
+  keeps its wheel and the small one sits in it with its ring.
 - **A sector the border, a slot or another wheel reaches into** has its outer
   arc replaced by the chord — a straight outer edge, so only ever smaller —
   and is then clipped like any other hole. You can see these on the bolt holes
@@ -162,9 +178,10 @@ material, never less:
   bitten as usual. The same goes for a cell that a disc cuts clean through.
   The split direction is whichever of six keeps the most hole.
 - **A hole near two circles** is bitten by the one reaching deepest into it
-  and cut straight for the other: one arc per hole, at most. This is the one
-  fallback that is sometimes visible — a straight edge facing the second
-  circle, the polygonal look the rings are there to avoid.
+  and cut straight for the other: one arc per hole, at most. This is the
+  fallback that shows — a straight edge facing the second circle, the
+  polygonal look the rings are there to avoid — and on a plate with rows of
+  bolt holes it happens a lot. See the numbers below.
 - **A sliver of a bite** — under about 1° of arc, or with a corner sharper or
   flatter than about 1° — is cut straight instead of drawn as a tiny arc.
 - **Half of a split hole that would itself need splitting** is cut straight.
@@ -173,34 +190,40 @@ material, never less:
   wider in places in the pictures.
 
 What the straight cuts cost, against the exact bite, on the round test faces
-(`python3 tools/fsmirror.py fallbacks`: 6 faces, 3 cell shapes, rings with
-and without spokes, 3 seeds — 108 plates, 6,598 holes):
+(`python3 tools/fsmirror.py fallbacks`: 7 faces, 3 cell shapes, rings with
+and without spokes, 3 seeds — 126 plates, 7,897 holes):
 
 | Straight cut because of | Per plate | Hole area lost, mean | Worst |
 | --- | --- | --- | --- |
-| a second circle | 1.9 | 2.6 mm² | 26.0 mm² |
-| a sliver of a bite | 0.7 | 0.03 mm² | 1.7 mm² |
-| a split half needing a split | 0.9 | 1.3 mm² | 5.3 mm² |
+| a second circle | 0.8 | 3.8 mm² | 26.0 mm² |
+| a sliver of a bite | 0.4 | under 0.01 mm² | 0.04 mm² |
+| a split half needing a split | 1.3 | 1.5 mm² | 5.3 mm² |
 
-In weight that is next to nothing — the mean total, about 6 mm² a plate, is
-0.1 g in 6 mm aluminium — and it is always extra material, never less. Giving
-a hole two arcs would remove the first row; it is not done yet.
+On those faces that is next to nothing — the mean total, about 5 mm² a
+plate, is 0.1 g in 6 mm aluminium — and it is always extra material, never
+less. **On a plate crowded with bolt holes it is not small.** On the robot
+plate at the top, with about 90 bolt holes, the same report gives about 200
+straight cuts a plate for a second circle, 10 mm² each on average and up to
+229 mm²: about 2,000 mm² of hole a plate left solid, and visible as straight
+edges and solid wedges along the bolt rows. The fix is to take every nearby
+circle out of a hole exactly, not just the nearest — the hole's outline then
+has an arc for each. That is the next thing to do, and not done yet.
 
 **What it costs in weight.** Rings on their own cost nothing: they are
 slightly *more* open than the old straight cuts, which removed whole slabs of
 hole. The wheels do cost material — that is what spokes and a hoop are. Open
-area on the side plate at the top, default settings:
+area on the side plate at the top, default settings (wheels on the two 22 mm
+bores only):
 
 | Cell shape | Straight cuts | Round rings | Rings + spokes |
 | --- | --- | --- | --- |
-| 4 sides | 58.1% | 58.6% | 52.7% |
-| 3 sides | 52.7% | 53.6% | 50.2% |
-| 6 sides | 58.7% | 59.2% | 53.5% |
+| 4 sides | 58.1% | 58.6% | 57.2% |
+| 3 sides | 52.7% | 53.6% | 53.0% |
+| 6 sides | 58.7% | 59.2% | 57.3% |
 
-On that 27,554 mm² face the largest difference, 5.9 points from rings to
-rings + spokes with 4 sides, is about 1,630 mm² more plate: 26 g in 6 mm
-aluminium, 10 g in 5 mm PLA. Fewer or thinner spokes buy some of it back;
-spokes off buys all of it.
+On that 27,554 mm² face the largest difference, 1.9 points from rings to
+rings + spokes with 6 sides, is about 520 mm² more plate: 8.5 g in 6 mm
+aluminium, 3 g in 5 mm PLA. More wheels cost more; spokes off costs nothing.
 
 **About strength.** The ring, spokes and hoop are guaranteed *minimum*
 widths, measured below. That is geometry, not an analysis: I have not run any
@@ -213,8 +236,8 @@ width and spoke thickness.
 Reproduce with:
 
 ```bash
-python3 tools/fsmirror.py check        # the geometry, measured
-python3 tools/fsmirror.py crosscheck   # the .fs file's own code, against it
+python3 tools/fsmirror.py check        # the geometry, measured (30-60 minutes)
+python3 tools/fsmirror.py crosscheck   # the .fs file's own code, against it (30-60 minutes)
 ```
 
 **`fsmirror.py check` — the geometry is right.** `tools/fsmirror.py` is a
@@ -233,46 +256,63 @@ chords the feature uses — for:
   radius from the hole's core, to 1e-6 mm;
 - the smallest hole.
 
-The measurement errs on the safe side: arcs are sampled so that every
-clearance comes out at most 1e-7 mm *smaller* than the truth, never larger,
-and distances between holes are taken exactly, between their cores less twice
-the corner radius.
+The measurement errs on the safe side. Round holes are measured as true
+circles. Every other curved edge of the face is sampled so that clearances to
+it come out at most 5e-7 mm *smaller* than the truth, never larger; the arcs
+of the holes themselves, at most 1e-7 mm. Distances between holes are taken
+exactly, between their cores less twice the corner radius. (An earlier
+version of this check sampled the face's curves coarsely enough to read up to
+4e-5 mm short on large arcs. That never hid a fault — it only ever read
+short — but it did flag a false one once a curved slot was added, which is
+how it was found.)
 
-Two matrices, each case 3 seeds:
+Three matrices, each case 3 seeds:
 
-- **Straight cuts** (round rings off — the first version's behaviour): nine
+- **Straight cuts** (round rings off — the first version's behaviour): ten
   faces — rectangle, rounded rectangle, circle, plate with four screw holes,
   plate with a big centre hole, plate with a slot, L-shape, notched plate,
-  ring — × 3 cell shapes × 9 settings: **729/729 pass**. Hole counts and open
-  areas are the same as before this change.
-- **Round rings and wheels:** six faces — the screw plate, big-hole plate,
-  ring and slot plate from above, the robot side plate at the top, and a
-  plate with three holes close enough that their wheels overlap — × 3 cell
-  shapes × 11 settings (ring 1–8 mm, spokes 0.8–5 mm thick, 8–40 mm long,
-  4–12 per hole or auto, rings without spokes, rib 0.8–4 mm, corner radius
-  0–4 mm, cropped as well as fitted): **594/594 pass**.
+  ring, and a plate with a curved slot and an L-shaped cutout — × 3 cell
+  shapes × 9 settings: **810/810 pass**. On the first nine faces, hole counts
+  and open areas are the same as the first version's.
+- **Round rings and wheels:** seven faces — the screw plate, big-hole plate,
+  ring, slot plate and curved-slot plate from above, the side plate at the
+  top, and a plate with three holes close enough that their wheels overlap —
+  × 3 cell shapes × 12 settings (ring 1–8 mm, spokes 0.8–5 mm thick, 8–40 mm
+  long, 4–12 per hole or auto, on every hole or only from 10 mm, rings
+  without spokes, rib 0.8–4 mm, corner radius 0–4 mm, cropped as well as
+  fitted): **756/756 pass**.
+- **The robot plate** at the top, with 30 mm cells: straight cuts, rings,
+  rings and spokes, smallest hole 10 mm, and wheels forced onto every hole
+  that has room: **45/45 pass**.
 
 To 1e-6 mm, on the safe side: no web thinner than the rib, no hole nearer
 than the border to the outline or a slot, nearer than the ring width to a
 round hole, or into a spoke's width; none outside the face, no loose pieces,
-no outline off its exact shape. Default settings:
+no outline off its exact shape. Default settings (— : no round hole, or no
+wheel, on that face):
 
 ```
-  rect_4_screws   QUAD holes=53   rib=2.0000 border=5.0000 ring=5.0000 spoke=3.0000 open=55.8%
-  rect_4_screws   TRI  holes=45   rib=2.0000 border=5.0000 ring=5.0000 spoke=3.0000 open=54.3%
-  rect_4_screws   HEX  holes=47   rib=2.0000 border=5.0000 ring=5.0000 spoke=3.0000 open=57.8%
+  rect_4_screws   QUAD holes=48   rib=2.0000 border=5.0000 ring=5.0000 spoke=  —    open=57.8%
+  rect_4_screws   TRI  holes=43   rib=2.0000 border=5.0000 ring=5.0000 spoke=  —    open=55.8%
+  rect_4_screws   HEX  holes=45   rib=2.0000 border=5.0000 ring=5.0000 spoke=  —    open=60.2%
   plate_big_hole  QUAD holes=56   rib=2.0000 border=5.0000 ring=5.0000 spoke=3.0000 open=55.4%
   plate_big_hole  TRI  holes=58   rib=2.0000 border=5.0000 ring=5.0000 spoke=3.0000 open=51.0%
   plate_big_hole  HEX  holes=58   rib=2.0000 border=5.0000 ring=5.0000 spoke=3.0000 open=55.4%
   annulus         QUAD holes=46   rib=2.0000 border=5.0055 ring=5.0000 spoke=3.0000 open=48.2%
   annulus         TRI  holes=46   rib=2.0000 border=5.0055 ring=5.0000 spoke=3.0000 open=49.4%
   annulus         HEX  holes=48   rib=2.0000 border=5.0055 ring=5.0000 spoke=3.0000 open=47.9%
-  side_plate      QUAD holes=135  rib=2.0000 border=5.0050 ring=5.0000 spoke=3.0000 open=52.7%
-  side_plate      TRI  holes=146  rib=2.0000 border=5.0050 ring=5.0000 spoke=3.0000 open=50.2%
-  side_plate      HEX  holes=137  rib=2.0000 border=5.0050 ring=5.0000 spoke=3.0000 open=53.5%
-  cluster         QUAD holes=49   rib=2.0000 border=5.0000 ring=5.0000 spoke=3.0000 open=54.8%
-  cluster         TRI  holes=47   rib=2.0000 border=5.0000 ring=5.0000 spoke=3.0000 open=52.7%
-  cluster         HEX  holes=48   rib=2.0000 border=5.0000 ring=5.0000 spoke=3.0000 open=56.2%
+  plate_slot      QUAD holes=34   rib=2.0000 border=5.0000 ring=  —    open=53.4%
+  plate_slot      TRI  holes=44   rib=2.0000 border=5.0000 ring=  —    open=49.8%
+  plate_slot      HEX  holes=42   rib=2.0000 border=5.0000 ring=  —    open=51.8%
+  side_plate      QUAD holes=122  rib=2.0000 border=5.0050 ring=5.0000 spoke=3.0000 open=57.2%
+  side_plate      TRI  holes=138  rib=2.0000 border=5.0050 ring=5.0000 spoke=3.0000 open=53.0%
+  side_plate      HEX  holes=129  rib=2.0000 border=5.0050 ring=5.0000 spoke=3.0000 open=57.3%
+  cluster         QUAD holes=46   rib=2.0000 border=5.0000 ring=5.0000 spoke=  —    open=56.6%
+  cluster         TRI  holes=44   rib=2.0000 border=5.0000 ring=5.0000 spoke=  —    open=54.1%
+  cluster         HEX  holes=44   rib=2.0000 border=5.0000 ring=5.0000 spoke=  —    open=58.3%
+  slots_plate     QUAD holes=77   rib=2.0000 border=5.0000 ring=  —    open=53.1%
+  slots_plate     TRI  holes=77   rib=2.0000 border=5.0000 ring=  —    open=50.1%
+  slots_plate     HEX  holes=82   rib=2.0000 border=5.0000 ring=  —    open=55.3%
 ```
 
 The border reads a few microns over 5 on curved outlines. That is the
@@ -287,13 +327,23 @@ wheels, every hole, hole areas, and the exact `skLineSegment` / `skArc` calls
 `drawHole` makes — and requires the answer to match the mirror point for
 point at every stage.
 
-Result: **189/189** straight-cut cases (9,791 holes) and **144/144**
-round-ring and wheel cases (5,061 plain holes, 2,267 bitten, 1,440 exact
-sectors) **identical**. The interpreter also checks every type annotation as
-Onshape does at run time, so a wrong `returns map` or `is Vector` fails here
-rather than in your Part Studio. The first port's crosscheck caught two
-mistakes: a constant mistyped after its tenth digit, now computed in the code,
-and one that was harmless, the same polygon listed from a different corner.
+Result: **210/210** straight-cut cases, **189/189** round-ring and wheel
+cases and **27/27** on the robot plate **identical** — 11,941 holes with
+straight cuts, and 10,647 plain holes, 5,139 bitten and 1,719 exact sectors
+with rings and wheels, compared point by point. The
+interpreter also checks every type annotation as Onshape does at run time, so
+a wrong `returns map` or `is Vector` fails here rather than in your Part
+Studio.
+
+What it has caught: in the first port, a constant mistyped after its tenth
+digit, now computed in the code. This round, two things. A bug in the Python
+mirror, not the feature: a list named `fit` hid the "Fit cells to the face"
+setting, so with spokes on and no round hole in the face the mirror quietly
+cropped instead of fitting — the FeatureScript was right. And a tie: next to
+a curved slot, after one triangle's cut the next triangle can sit exactly the
+clearance away, and Python and FeatureScript differ in the last digit about
+which side of it that is. Both answers were safe; the code now settles such
+ties the safe way in any arithmetic.
 
 **Not tested — needs Onshape:**
 
@@ -310,7 +360,11 @@ and one that was harmless, the same polygon listed from a different corner.
   endpoints match exactly but carry no coincidence constraints.
 - Speed with many holes. A plain hole is one line and one arc per corner —
   typically 6 to 16 sketch entities; a sector is 8. A few hundred holes is a few
-  thousand entities in one sketch.
+  thousand entities in one sketch. A face with many round holes or a long
+  curved slot also costs more maths: every hole checks the round holes and
+  slot triangles near it. In the interpreter, which is far slower than
+  Onshape, the 630 mm robot plate takes about 27 seconds a plan; how long it
+  takes in Onshape is unknown.
 - Selecting several faces of one part, and faces on opposite sides of a part.
 
 ## Same pattern as the OpenSCAD version

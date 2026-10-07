@@ -155,6 +155,16 @@ const SPOKE_LENGTH_BOUNDS =
     (yard) : 0.011
 } as LengthBoundSpec;
 
+const SPOKE_MIN_BOUNDS =
+{
+    (millimeter) : [0, 10, 10000],
+    (centimeter) : 1,
+    (meter) : 0.01,
+    (inch) : 0.4,
+    (foot) : 0.033,
+    (yard) : 0.011
+} as LengthBoundSpec;
+
 const SPOKE_ANGLE_BOUNDS =
 {
     (degree) : [-360, 90, 360],
@@ -253,6 +263,9 @@ export const leopardVent = defineFeature(function(context is Context, id is Id, 
 
             if (definition.spokes)
             {
+                annotation { "Name" : "Spokes only on holes from" }
+                isLength(definition.spokeMinD, SPOKE_MIN_BOUNDS);
+
                 annotation { "Name" : "Spoke thickness" }
                 isLength(definition.spokeWidth, SPOKE_WIDTH_BOUNDS);
 
@@ -316,6 +329,7 @@ export const leopardVent = defineFeature(function(context is Context, id is Id, 
             if (definition.spokes)
             {
                 settings.spokes = true;
+                settings.spokeMinD = definition.spokeMinD / millimeter;
                 settings.spokeWidth = definition.spokeWidth / millimeter;
                 settings.spokeLength = definition.spokeLength / millimeter;
                 settings.spokeCount = definition.spokeCount;
@@ -1058,7 +1072,8 @@ function buildRegion(polys is array, gs is number) returns map
         {
             const hull = convexHull(pts);
             const c = centroid2(hull);
-            inners = append(inners, { "hull" : hull, "centre" : c, "sag" : lp.sag, "circle" : lp.circle });
+            inners = append(inners, { "hull" : hull, "centre" : c, "sag" : lp.sag, "circle" : lp.circle,
+                        "parts" : loopParts(pts, hull) });
             inner = size(inners) - 1;
             if (lp.circle != undefined)
                 circles = append(circles, { "c" : lp.circle.c, "r" : lp.circle.r, "inner" : inner });
@@ -1079,6 +1094,93 @@ function buildRegion(polys is array, gs is number) returns map
             }
     }
     return { "segs" : segs, "inners" : inners, "circles" : circles, "lo" : lo, "hi" : hi, "grid" : grid, "gs" : gs };
+}
+
+// A hole in the face that is not convex -- a curved slot, an L-shaped cutout --
+// cannot be kept clear by one straight cut against its convex hull: the hull
+// of a curved slot covers the whole region inside the curve, which then stays
+// solid. Such a loop is split into triangles instead, and each hole is kept
+// clear of each triangle near it, one straight cut apiece. The triangles cover
+// the loop exactly, so clearing every one clears the loop. undefined for a
+// convex loop (the hull is then exact) or when the split fails, which leaves
+// the hull: conservative, as before.
+function loopParts(lp is array, hull is array)
+{
+    const area = abs(signedArea(lp));
+    if (abs(signedArea(hull)) - area <= 1e-6 * area)
+        return undefined;
+    const tris = triangulate(reverse(lp));
+    if (size(tris) == 0)
+        return undefined;
+    var parts = [];
+    for (var t in tris)
+    {
+        const c = centroid2(t);
+        var rad = 0;
+        for (var q in t)
+            rad = max(rad, norm(q - c));
+        parts = append(parts, { "pts" : t, "c" : c, "r" : rad });
+    }
+    return parts;
+}
+
+function pointInTriangle(p is Vector, a is Vector, b is Vector, c is Vector) returns boolean
+{
+    return cross2(b - a, p - a) >= 0 && cross2(c - b, p - b) >= 0 && cross2(a - c, p - c) >= 0;
+}
+
+// Ear clipping of a simple counter-clockwise polygon into counter-clockwise
+// triangles. [] if it gets stuck, which only a degenerate polygon can do.
+function triangulate(poly is array) returns array
+{
+    var pts = [];
+    const n = size(poly);
+    for (var k = 0; k < n; k += 1)
+    {
+        const a = poly[(k + n - 1) % n];
+        const b = poly[k];
+        const c = poly[(k + 1) % n];
+        if (abs(cross2(b - a, c - b)) > 1e-12 * (dot(b - a, b - a) + dot(c - b, c - b)))
+            pts = append(pts, b);
+    }
+    var idx = [];
+    for (var k = 0; k < size(pts); k += 1)
+        idx = append(idx, k);
+    var tris = [];
+    while (size(idx) > 3)
+    {
+        const m = size(idx);
+        var cut = -1;
+        for (var i = 0; i < m; i += 1)
+        {
+            const ia = idx[(i + m - 1) % m];
+            const ib = idx[i];
+            const ic = idx[(i + 1) % m];
+            if (cross2(pts[ib] - pts[ia], pts[ic] - pts[ib]) <= 0)
+                continue;
+            var ear = true;
+            for (var j in idx)
+            {
+                if (j != ia && j != ib && j != ic && pointInTriangle(pts[j], pts[ia], pts[ib], pts[ic]))
+                {
+                    ear = false;
+                    break;
+                }
+            }
+            if (ear)
+            {
+                cut = i;
+                break;
+            }
+        }
+        if (cut < 0)
+            return [];
+        tris = append(tris, [pts[idx[(cut + m - 1) % m]], pts[idx[cut]], pts[idx[(cut + 1) % m]]]);
+        idx = concatenateArrays([subArray(idx, 0, cut), subArray(idx, cut + 1, m)]);
+    }
+    if (size(idx) == 3)
+        tris = append(tris, [pts[idx[0]], pts[idx[1]], pts[idx[2]]]);
+    return tris;
 }
 
 function nearSegments(region is map, c is Vector, reach is number) returns array
@@ -1241,12 +1343,65 @@ function regionClip(coreIn is array, c is Vector, region is map, reach is number
             const innerLoop = region.inners[seg.inner];
             if (skipCircles && innerLoop.circle != undefined)
                 continue;
-            core = innerClip(core, c, innerLoop.hull, border + r + innerLoop.sag);
+            if (innerLoop.parts == undefined)
+                core = innerClip(core, c, innerLoop.hull, border + r + innerLoop.sag);
+            else
+                core = partsClip(core, c, innerLoop.parts, reach, border + r + innerLoop.sag);
         }
         if (size(core) < 3)
             return [];
     }
     return core;
+}
+
+
+// Keeps a core clear of every triangle of a non-convex inner loop that comes
+// within clearance of it, nearest first, one straight cut each. Neighbouring
+// triangles share corners, so after one cut the next is often exactly at the
+// clearance: the 1e-9 settles that tie the safe way, the same way in any
+// arithmetic.
+function partsClip(coreIn is array, c is Vector, parts is array, reach is number, clearance is number) returns array
+{
+    var core = coreIn;
+    var near = [];
+    for (var k = 0; k < size(parts); k += 1)
+        if (norm(parts[k].c - c) < reach + parts[k].r + clearance)
+            near = append(near, { "d" : polyPointDist(parts[k].pts, c), "k" : k });
+    near = sort(near, function(a, b) { return a.d != b.d ? a.d - b.d : a.k - b.k; });
+    for (var e in near)
+    {
+        const t = parts[e.k].pts;
+        if (polyDist(core, t) < clearance + 1e-9)
+        {
+            core = innerClip(core, c, t, clearance);
+            if (size(core) < 3)
+                return [];
+        }
+    }
+    return core;
+}
+
+function segSegDist(a is Vector, b is Vector, c is Vector, d is Vector) returns number
+{
+    const d1 = cross2(b - a, c - a);
+    const d2 = cross2(b - a, d - a);
+    const d3 = cross2(d - c, a - c);
+    const d4 = cross2(d - c, b - c);
+    if (((d1 > 0) != (d2 > 0)) && ((d3 > 0) != (d4 > 0)) && d1 != 0 && d2 != 0 && d3 != 0 && d4 != 0)
+        return 0;
+    return min(min(segDist(a, c, d), segDist(b, c, d)), min(segDist(c, a, b), segDist(d, a, b)));
+}
+
+// Distance between two convex counter-clockwise polygons; 0 if they overlap.
+function polyDist(A is array, B is array) returns number
+{
+    if (pointInConvex(A, B[0]) || pointInConvex(B, A[0]))
+        return 0;
+    var best = inf;
+    for (var i = 0; i < size(A); i += 1)
+        for (var j = 0; j < size(B); j += 1)
+            best = min(best, segSegDist(A[i], A[(i + 1) % size(A)], B[j], B[(j + 1) % size(B)]));
+    return best;
 }
 
 
@@ -1392,8 +1547,14 @@ function finishHole(coreIn is array, discs is array, r is number, keepR is numbe
         return [];
     var bite = undefined;
     var near = [];
+    const cc = centroid2(core);
+    var cr = 0;
+    for (var q in core)
+        cr = max(cr, norm(q - cc));
     for (var k = 0; k < size(discs); k += 1)
     {
+        if (norm(discs[k].c - cc) - cr >= discs[k].rho)      // quick reject: the core lies within cr of cc
+            continue;
         const dk = polyPointDist(core, discs[k].c);
         if (dk < discs[k].rho)
             near = append(near, { "depth" : dk - discs[k].rho, "k" : k });
@@ -1675,9 +1836,13 @@ function planHoles(region is map, settings is map) returns array
                 zones = append(zones, { "c" : wheels[i].c, "rho" : wheels[i].rb + rib + r });
                 order = append(order, { "rc" : wheels[i].rc, "i" : i });
             }
-            // Wheels that overlap a lot would only cancel out into a solid
-            // lump, so the larger circle keeps its wheel and the smaller one
-            // just its ring: a centre inside an accepted wheel loses its own.
+            // Wheels only round holes of at least spokeMinD, and only where
+            // they have room. Two that overlap by more than a spoke length
+            // would chop each other up, so: between holes of like size
+            // (neither 1.5 times the other), neither gets one -- a row of
+            // holes just gets rings -- and between a big hole and a small
+            // one, the big one keeps its wheel and the small one sits in it
+            // with its ring.
             order = sort(order, function(a, b) { return a.rc != b.rc ? b.rc - a.rc : a.i - b.i; });
             var on = [];
             for (var i = 0; i < size(wheels); i += 1)
@@ -1685,11 +1850,17 @@ function planHoles(region is map, settings is map) returns array
             for (var o in order)
             {
                 const i = o.i;
-                var clear = true;
+                var ok = 2 * wheels[i].rc >= settings.spokeMinD;
                 for (var j = 0; j < size(wheels); j += 1)
-                    if (on[j] && norm(wheels[i].c - wheels[j].c) < max(zones[i].rho, zones[j].rho))
-                        clear = false;
-                on[i] = clear;
+                {
+                    if (j == i || 2 * wheels[j].rc < settings.spokeMinD || wheels[j].rc * 1.5 <= wheels[i].rc)
+                        continue;
+                    if (norm(wheels[i].c - wheels[j].c) >= zones[i].rho + zones[j].rho - settings.spokeLength)
+                        continue;
+                    if (on[j] || wheels[i].rc * 1.5 > wheels[j].rc)
+                        ok = false;
+                }
+                on[i] = ok;
             }
             var keepOut = [];
             for (var j = 0; j < size(wheels); j += 1)

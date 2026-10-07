@@ -476,7 +476,7 @@ def convex_hull(pts):
 @dataclass
 class Region:
     segs: list = field(default_factory=list)    # (a, b, sag, inner_index or -1)
-    inners: list = field(default_factory=list)  # (hull, centre, radius, sag, circle or None)
+    inners: list = field(default_factory=list)  # (hull, centre, radius, sag, circle or None, parts or None)
     circles: list = field(default_factory=list) # (centre, radius, inner index) of each round inner loop
     lo: tuple = (0, 0)
     hi: tuple = (0, 0)
@@ -495,7 +495,7 @@ def build_region(edges, grid_size):
         if signed_area(lp) < 0:
             hull = convex_hull(lp)
             c = centroid(hull)
-            R.inners.append((hull, c, max(vlen(sub(q, c)) for q in hull), sag, circ))
+            R.inners.append((hull, c, max(vlen(sub(q, c)) for q in hull), sag, circ, loop_parts(lp, hull)))
             inner = len(R.inners) - 1
             if circ is not None:
                 R.circles.append((circ[0], circ[1], inner))
@@ -507,6 +507,87 @@ def build_region(edges, grid_size):
             for gy in range(math.floor(min(a[1], b[1]) / R.gs), math.floor(max(a[1], b[1]) / R.gs) + 1):
                 R.grid.setdefault((gx, gy), []).append(idx)
     return R
+
+
+# A hole in the face that is not convex -- a curved slot, an L-shaped cutout --
+# cannot be kept clear by one straight cut against its convex hull: the hull
+# of a curved slot covers the whole region inside the curve, which then stays
+# solid. Such a loop is split into triangles instead, and each hole is kept
+# clear of each triangle near it, one straight cut apiece. The triangles cover
+# the loop exactly, so clearing every one clears the loop. Returns None for a
+# convex loop (the hull is then exact) or when the split fails, which leaves
+# the hull: conservative, as before.
+def loop_parts(lp, hull):
+    area = abs(signed_area(lp))
+    if abs(signed_area(hull)) - area <= 1e-6 * area:
+        return None
+    tris = triangulate(list(reversed(lp)))
+    if not tris:
+        return None
+    parts = []
+    for t in tris:
+        c = centroid(t)
+        parts.append((t, c, max(vlen(sub(q, c)) for q in t)))
+    return parts
+
+
+def point_in_triangle(p, a, b, c):
+    return cross2(sub(b, a), sub(p, a)) >= 0 and cross2(sub(c, b), sub(p, b)) >= 0 and \
+        cross2(sub(a, c), sub(p, c)) >= 0
+
+
+# Ear clipping of a simple counter-clockwise polygon into counter-clockwise
+# triangles. [] if it gets stuck, which only a degenerate polygon can do.
+def triangulate(poly):
+    pts = []
+    n = len(poly)
+    for k in range(n):
+        a, b, c = poly[k - 1], poly[k], poly[(k + 1) % n]
+        if abs(cross2(sub(b, a), sub(c, b))) > 1e-12 * (dot(sub(b, a), sub(b, a)) + dot(sub(c, b), sub(c, b))):
+            pts.append(b)
+    idx = list(range(len(pts)))
+    tris = []
+    while len(idx) > 3:
+        m = len(idx)
+        cut = -1
+        for i in range(m):
+            a, b, c = pts[idx[i - 1]], pts[idx[i]], pts[idx[(i + 1) % m]]
+            if cross2(sub(b, a), sub(c, b)) <= 0:
+                continue
+            ear = True
+            for j in idx:
+                if j != idx[i - 1] and j != idx[i] and j != idx[(i + 1) % m] and point_in_triangle(pts[j], a, b, c):
+                    ear = False
+                    break
+            if ear:
+                cut = i
+                break
+        if cut < 0:
+            return []
+        tris.append([pts[idx[cut - 1]], pts[idx[cut]], pts[idx[(cut + 1) % m]]])
+        idx = idx[:cut] + idx[cut + 1:]
+    if len(idx) == 3:
+        tris.append([pts[k] for k in idx])
+    return tris
+
+
+def seg_seg_dist(a, b, c, d):
+    d1, d2 = cross2(sub(b, a), sub(c, a)), cross2(sub(b, a), sub(d, a))
+    d3, d4 = cross2(sub(d, c), sub(a, c)), cross2(sub(d, c), sub(b, c))
+    if ((d1 > 0) != (d2 > 0)) and ((d3 > 0) != (d4 > 0)) and d1 != 0 and d2 != 0 and d3 != 0 and d4 != 0:
+        return 0.0
+    return min(seg_dist(a, c, d), seg_dist(b, c, d), seg_dist(c, a, b), seg_dist(d, a, b))
+
+
+# Distance between two convex counter-clockwise polygons; 0 if they overlap.
+def poly_dist(A, B):
+    if point_in_convex(A, B[0]) or point_in_convex(B, A[0]):
+        return 0.0
+    best = math.inf
+    for i in range(len(A)):
+        for j in range(len(B)):
+            best = min(best, seg_seg_dist(A[i], A[(i + 1) % len(A)], B[j], B[(j + 1) % len(B)]))
+    return best
 
 
 def near_segments(R, c, reach):
@@ -622,12 +703,35 @@ def region_clip(core, c, R, reach, border, r, ring=None):
             core = clip_left_of(core, a, b, border + r + sag)
         elif inner not in seen_inner:
             seen_inner.add(inner)
-            hull, _, _, isag, circ = R.inners[inner]
+            hull, _, _, isag, circ, parts = R.inners[inner]
             if ring is not None and circ is not None:
                 continue
-            core = inner_clip(core, c, hull, border + r + isag)
+            if parts is None:
+                core = inner_clip(core, c, hull, border + r + isag)
+            else:
+                core = parts_clip(core, c, parts, reach, border + r + isag)
         if len(core) < 3:
             return []
+    return core
+
+
+# Keeps a core clear of every triangle of a non-convex inner loop that comes
+# within clearance of it, nearest first, one straight cut each. Neighbouring
+# triangles share corners, so after one cut the next is often exactly at the
+# clearance: the 1e-9 settles that tie the safe way, the same way in any
+# arithmetic.
+def parts_clip(core, c, parts, reach, clearance):
+    near = []
+    for k, (t, tc, tr) in enumerate(parts):
+        if vlen(sub(tc, c)) < reach + tr + clearance:
+            near.append((poly_point_dist(t, c), k))
+    near.sort()
+    for _, k in near:
+        t = parts[k][0]
+        if poly_dist(core, t) < clearance + 1e-9:
+            core = inner_clip(core, c, t, clearance)
+            if len(core) < 3:
+                return []
     return core
 
 
@@ -747,7 +851,11 @@ def finish_hole(core, discs, r, keep_r, split_d, depth=0):
     bite = None
     cut = False
     near = []
+    cc = centroid(core)
+    cr = max(vlen(sub(q, cc)) for q in core)
     for k, (C, rho) in enumerate(discs):
+        if vlen(sub(C, cc)) - cr >= rho:      # quick reject: the core lies within cr of cc
+            continue
         dk = poly_point_dist(core, C)
         if dk < rho:
             near.append((dk - rho, k))
@@ -943,7 +1051,7 @@ def cell_holes(cell, R, rib, r, border, keep_r, ring=None, discs=()):
     return finish_hole(core, discs, r, keep_r, rib / 2 + r)
 
 
-SPOKE_DEFAULTS = dict(count=0, width=3.0, length=10.0, angle=90.0)
+SPOKE_DEFAULTS = dict(count=0, width=3.0, length=10.0, angle=90.0, min_d=10.0)
 
 
 def plan_face(edges, shape="QUAD", cell=14.0, rib=2.0, border=5.0, irregular=0.7,
@@ -980,14 +1088,25 @@ def plan_face(edges, shape="QUAD", cell=14.0, rib=2.0, border=5.0, irregular=0.7
                 n = spoke_count(Ra, depth, cell, sp["count"])
                 ros.append(dict(C=C, Rc=Rc, Ra=Ra, Rb=Ra + depth, d=w / 2 + r, dirs=spoke_dirs(n, sp["angle"])))
             zones = [(w_["C"], w_["Rb"] + rib + r) for w_ in ros]
-            # Wheels that overlap a lot would only cancel out into a solid
-            # lump, so the larger circle keeps its wheel and the smaller one
-            # just its ring: a centre inside an accepted wheel loses its own.
+            # Wheels only round holes of at least min_d, and only where they
+            # have room. Two that overlap by more than a spoke length would
+            # chop each other up, so: between holes of like size (neither 1.5
+            # times the other), neither gets one -- a row of holes just gets
+            # rings -- and between a big hole and a small one, the big one
+            # keeps its wheel and the small one sits in it with its ring.
             order = sorted(range(len(ros)), key=lambda i: (-ros[i]["Rc"], i))
+            big = [2 * w_["Rc"] >= sp["min_d"] for w_ in ros]
             on = [False] * len(ros)
             for i in order:
-                on[i] = all(not on[j] or vlen(sub(ros[i]["C"], ros[j]["C"])) >= max(zones[i][1], zones[j][1])
-                            for j in range(len(ros)))
+                ok = big[i]
+                for j in range(len(ros)):
+                    if j == i or not big[j] or ros[j]["Rc"] * 1.5 <= ros[i]["Rc"]:
+                        continue
+                    if vlen(sub(ros[i]["C"], ros[j]["C"])) >= zones[i][1] + zones[j][1] - sp["length"]:
+                        continue
+                    if on[j] or ros[i]["Rc"] * 1.5 > ros[j]["Rc"]:
+                        ok = False
+                on[i] = ok
             keep_out = [zones[j] if on[j] else discs[j] for j in range(len(ros))]
             for i in range(len(ros)):
                 hs = wheel_holes(i, ros, keep_out, R, rib, r, bw, keep_r) if on[i] else []
@@ -1181,6 +1300,60 @@ def side_plate():
             + circle_loop(130, 55, 4, hole=True))
 
 
+def loop_of(pts, hole=False):
+    """Straight-sided loop through pts, given counter-clockwise; a hole runs the other way."""
+    pts = list(reversed(pts)) if hole else list(pts)
+    return [Edge("line", pts[k], pts[(k + 1) % len(pts)]) for k in range(len(pts))]
+
+
+def arc_slot(c, r1, r2, a0, a1):
+    """A curved slot, an inner loop: the band between radii r1 and r2 about c
+    from angle a0 to a1 (degrees), with round ends."""
+    rm, w = (r1 + r2) / 2, (r2 - r1) / 2
+    p0 = (c[0] + rm * math.cos(math.radians(a0)), c[1] + rm * math.sin(math.radians(a0)))
+    p1 = (c[0] + rm * math.cos(math.radians(a1)), c[1] + rm * math.sin(math.radians(a1)))
+    return [Edge("arc", c, r=r2, t0=a1, t1=a0), Edge("arc", p0, r=w, t0=a0, t1=a0 - 180),
+            Edge("arc", c, r=r1, t0=a0, t1=a1), Edge("arc", p1, r=w, t0=a1 + 180, t1=a1)]
+
+
+def slots_plate():
+    # Holes that are not convex: a curved slot, whose inside must not be left
+    # solid, and an L-shaped cutout.
+    return (rect(0, 0, 160, 120) + arc_slot((60, 50), 40, 46, -60, 80)
+            + loop_of([(110, 70), (145, 70), (145, 80), (120, 80), (120, 105), (110, 105)], hole=True))
+
+
+def robot_plate():
+    # Modelled on a real FRC side plate: an odd outline with a notch, ~90
+    # bolt holes in rows, a 40 mm bore, a row of 18 mm holes, four 14 mm
+    # holes, a curved slot, a rectangular and a rounded cutout. 630 x 420 mm.
+    px = lambda x, y: (round(x / 2.4, 2), round((1100 - y) / 2.4, 2))
+    outer = [px(130, 950), px(165, 200), px(245, 20), px(450, 100), px(560, 60), px(690, 70),
+             px(890, 190), px(895, 290), px(1520, 580), px(1525, 700), px(1300, 740),
+             px(1290, 1025), px(920, 1000), px(925, 845), px(750, 845), px(745, 800),
+             px(510, 800), px(495, 975)]
+    edges = loop_of(list(reversed(outer)))
+    circ = lambda c, d: circle_loop(c[0], c[1], d / 2, hole=True)
+    edges += circ(px(230, 650), 40)
+    for q in [(810, 430), (870, 455), (945, 490), (1020, 520), (1080, 545), (1165, 590), (1240, 620)]:
+        edges += circ(px(*q), 18)
+    for q in [(580, 265), (265, 800), (400, 855), (1085, 935)]:
+        edges += circ(px(*q), 14)
+    edges += arc_slot(px(560, 300), 77, 83, -74, 36)
+    edges += loop_of([px(805, 345), px(870, 345), px(870, 210), px(805, 210)], hole=True)
+    edges += slot_loop(140, 180, px(0, 690)[1], 25)
+    rows = [((150, 930), (185, 230), 18), ((260, 60), (440, 130), 5), ((700, 110), (860, 200), 4),
+            ((930, 330), (1480, 600), 14), ((190, 937), (470, 955), 7), ((940, 985), (1270, 1005), 8),
+            ((1495, 610), (1495, 680), 3), ((300, 380), (300, 600), 5), ((700, 500), (700, 760), 6),
+            ((1268, 660), (1262, 950), 7)]
+    for a, b, n in rows:
+        for k in range(n):
+            t = k / (n - 1)
+            q = px(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
+            edges += circle_loop(q[0], q[1], 2.55, hole=True)
+    return edges
+
+
 def cluster():
     # Three holes close enough that their rings overlap, and one by an edge.
     return (rect(0, 0, 120, 90) + circle_loop(40, 45, 3, hole=True)
@@ -1199,6 +1372,7 @@ FACES = {
     "l_shape": l_shape(),
     "notched": notched(),
     "annulus": circle_loop(0, 0, 60) + circle_loop(0, 0, 25, hole=True),
+    "slots_plate": slots_plate(),
 }
 
 # Faces for the round rings and spokes: the four above with round holes, the
@@ -1206,18 +1380,25 @@ FACES = {
 ROUND_FACES = dict(
     rect_4_screws=FACES["rect_4_screws"], plate_big_hole=FACES["plate_big_hole"],
     annulus=FACES["annulus"], plate_slot=FACES["plate_slot"], side_plate=side_plate(),
-    cluster=cluster())
+    cluster=cluster(), slots_plate=FACES["slots_plate"])
+
+# A whole robot plate, at a cell size that suits it.
+PLATE_FACES = dict(robot_plate=robot_plate())
 
 
 # Sampling for measurement, on the safe side: an arc the face lies inside
 # (counter-clockwise, face on the left) by chords, which fall inside the face;
 # an arc round a hole in the face (clockwise) by tangents, which fall outside
 # the hole. Either way the sampled face is slightly smaller than the true one,
-# so every clearance measured to it comes out slightly small, never large.
-def fine(e):
+# so every clearance measured to it comes out slightly small, never large --
+# by at most FINE_SAG. Round holes are measured as true circles instead.
+FINE_SAG = 5e-7
+
+
+def fine(e, sag=FINE_SAG):
     if e.kind == "line":
         return [e.at(0), e.at(1)]
-    n = max(8, math.ceil(abs(e.t1 - e.t0) * 8))
+    n = max(8, math.ceil(abs(math.radians(e.t1 - e.t0)) / (2 * math.acos(1 - sag / e.r))))
     if e.t1 > e.t0:
         return [e.at(k / n) for k in range(n + 1)]
     h = math.radians(e.t1 - e.t0) / n
@@ -1228,14 +1409,17 @@ def fine(e):
     return out + [e.at(1)]
 
 
-def true_loops(edges):
-    return chain_loops_c([(fine(e), 0, edge_circle(e)) for e in edges])
+def true_loops(edges, sag=FINE_SAG):
+    return chain_loops_c([(fine(e, sag), 0, edge_circle(e)) for e in edges])
 
 
 def true_region(edges):
-    """The face as shapely geometry, sampled on the safe side (see fine)."""
+    """The face as shapely geometry, for telling inside from outside and for
+    finding loose pieces -- which need no fine sampling, so this takes 1e-4 mm
+    and keeps faces with many round holes quick. Clearances are measured
+    against the finely sampled loops instead."""
     import shapely
-    loops = [lp for lp, _, _ in true_loops(edges)]
+    loops = [lp for lp, _, _ in true_loops(edges, 1e-4)]
     outer = max(loops, key=signed_area)
     holes = [lp for lp in loops if lp is not outer]
     return shapely.Polygon(outer, holes)
@@ -1341,16 +1525,20 @@ def measure(edges, plan):
         for j in tree.query(p, predicate="dwithin", distance=50.0):
             if j > i:
                 res["rib"] = min(res["rib"], p.distance(P[j]) - 2 * r)
-    # Border: to the outline and every inner loop -- or, with round rings, to
-    # every inner loop but the round ones, which are measured as true circles.
-    lines = [shapely.LinearRing(lp) for lp, _, circ in true_loops(edges)
-             if ring is None or circ is None or signed_area(lp) > 0]
+    # Border: to the outline and every inner loop that is not round. Round
+    # ones are measured as true circles: against the border with round rings
+    # off, against the ring width with them on.
+    lines = [shapely.LinearRing(lp) for lp, _, circ in true_loops(edges) if circ is None or signed_area(lp) > 0]
     bnd = shapely.MultiLineString([list(l.coords) for l in lines])
     res["border"] = min(p.distance(bnd) for p in P) - r
-    if ring is not None:
-        for C, Rc, _ in plan["circles"]:
-            pc = shapely.Point(C)
-            res["ring"] = min(res["ring"], min(p.distance(pc) for p in P) - r - Rc)
+    circle_clear = math.inf
+    for C, Rc, _ in plan["circles"]:
+        pc = shapely.Point(C)
+        circle_clear = min(circle_clear, min(p.distance(pc) for p in P) - r - Rc)
+    if ring is None:
+        res["border"] = min(res["border"], circle_clear)
+    else:
+        res["ring"] = circle_clear
         w = plan["spoke_w"]
         for wh in plan["wheels"]:
             if not wh["sectors"]:
@@ -1417,15 +1605,24 @@ CLASSIC_SETTINGS = [
 ROUND_SETTINGS = [
     dict(ring=5.0),
     dict(ring=5.0, spokes={}),
-    dict(ring=3.0, spokes=dict(width=2.0)),
-    dict(ring=5.0, spokes=dict(count=4, length=40.0)),
+    dict(ring=5.0, spokes=dict(min_d=0)),
+    dict(ring=3.0, spokes=dict(width=2.0, min_d=0)),
+    dict(ring=5.0, spokes=dict(count=4, length=40.0, min_d=0)),
     dict(ring=5.0, spokes=dict(count=12, width=4.0)),
-    dict(ring=5.0, spokes=dict(angle=17.0), irregular=1.0),
+    dict(ring=5.0, spokes=dict(angle=17.0, min_d=0), irregular=1.0),
     dict(ring=8.0, spokes={}, corner=4.0),
-    dict(ring=2.0, spokes={}, corner=0.0, min_hole=0.0),
-    dict(ring=5.0, spokes={}, fit=False),
-    dict(ring=1.0, spokes=dict(width=0.8, length=8.0), rib=0.8, cell=8, border=3, min_hole=3),
+    dict(ring=2.0, spokes=dict(min_d=0), corner=0.0, min_hole=0.0),
+    dict(ring=5.0, spokes=dict(min_d=0), fit=False),
+    dict(ring=1.0, spokes=dict(width=0.8, length=8.0, min_d=0), rib=0.8, cell=8, border=3, min_hole=3),
     dict(ring=6.0, spokes=dict(width=5.0), rib=4.0, cell=20, border=6),
+]
+
+PLATE_SETTINGS = [
+    dict(cell=30.0),
+    dict(cell=30.0, ring=5.0),
+    dict(cell=30.0, ring=5.0, spokes={}),
+    dict(cell=30.0, ring=5.0, spokes={}, min_hole=10.0),
+    dict(cell=30.0, ring=5.0, spokes=dict(min_d=0)),
 ]
 
 
@@ -1477,14 +1674,19 @@ def run_matrix(group, verbose, label, jobs=4):
 
 
 def run_checks(verbose=True, only=None, jobs=4):
-    MATRICES.update(classic=(FACES, CLASSIC_SETTINGS), round=(ROUND_FACES, ROUND_SETTINGS))
+    MATRICES.update(classic=(FACES, CLASSIC_SETTINGS), round=(ROUND_FACES, ROUND_SETTINGS),
+                    plate=(PLATE_FACES, PLATE_SETTINGS))
     fails = 0
     if only in (None, "classic"):
         print("Straight cuts round inner loops (round rings off):")
         fails += run_matrix("classic", 1 if verbose else 0, "straight cuts", jobs)
     if only in (None, "round"):
-        print("Round rings and wheels (defaults: ring 5, spokes 3 mm thick, 10 mm long, auto count):")
+        print("Round rings and wheels (defaults: ring 5, spokes 3 mm thick, 10 mm long, auto count,"
+              " on holes from 10 mm):")
         fails += run_matrix("round", 2 if verbose else 0, "round rings and wheels", jobs)
+    if only in (None, "plate"):
+        print("A whole robot plate, 30 mm cells (round rings and spokes at defaults):")
+        fails += run_matrix("plate", 3 if verbose else 0, "robot plate", jobs)
     return 1 if fails else 0
 
 
@@ -1593,7 +1795,7 @@ def round_preview(path, face="side_plate", scale=3.0):
 # to the FeatureScript. What is left untested is only the Onshape I/O:
 # reading the face, and the sketch / extrude / boolean calls.
 
-def run_crosscheck(fs_path):
+def run_crosscheck(fs_path, plate=True):
     import fsinterp
     from fsinterp import Vec
 
@@ -1705,7 +1907,7 @@ def run_crosscheck(fs_path):
                     print(f"FAIL {fname} {shape} {st}: {'; '.join(errs)}")
         print(f"  {fname:<15} ok so far: {n - fails}/{n}")
     print(f"== crosscheck, straight cuts: {n - fails}/{n} cases agree, {holes} holes compared point by point ==")
-    rfails = run_round_crosscheck(it, shapes, recorded, same_pt, rotation)
+    rfails = run_round_crosscheck(it, shapes, recorded, same_pt, rotation, plate)
     return 1 if fails or rfails else 0
 
 
@@ -1723,18 +1925,23 @@ def fs_polys_of(edges):
 # The round rings and wheels: planHoles, the .fs file's whole hole plan for a
 # face, against plan_face, hole by hole; then every hole's sketch entities and
 # area, and drawHole's calls for each.
-def run_round_crosscheck(it, shapes, recorded, same_pt, rotation):
+def run_round_crosscheck(it, shapes, recorded, same_pt, rotation, plate=True):
     from fsinterp import Vec
-    settings = [dict(), dict(ring=5.0), dict(ring=5.0, spokes={}), dict(ring=3.0, spokes=dict(width=2.0, count=7)),
-                dict(ring=5.0, spokes=dict(angle=17.0), irregular=1.0), dict(ring=8.0, spokes={}, corner=4.0),
-                dict(ring=2.0, spokes={}, corner=0.0, min_hole=0.0), dict(ring=5.0, spokes={}, fit=False)]
+    settings = [dict(), dict(ring=5.0), dict(ring=5.0, spokes={}), dict(ring=5.0, spokes=dict(min_d=0)),
+                dict(ring=3.0, spokes=dict(width=2.0, count=7, min_d=0)),
+                dict(ring=5.0, spokes=dict(angle=17.0, min_d=0), irregular=1.0), dict(ring=8.0, spokes={}, corner=4.0),
+                dict(ring=2.0, spokes=dict(min_d=0), corner=0.0, min_hole=0.0),
+                dict(ring=5.0, spokes=dict(min_d=0), fit=False)]
     n = fails = 0
     counts = dict(core=0, bite=0, sector=0)
-    for fname, edges in ROUND_FACES.items():
+    faces = [(f, e, 14.0) for f, e in ROUND_FACES.items()]
+    if plate:                                  # slow in the interpreter: ~20 minutes
+        faces += [(f, e, 30.0) for f, e in PLATE_FACES.items()]
+    for fname, edges, cell in faces:
         fs_polys = fs_polys_of(edges)
         for shape in ("QUAD", "TRI", "HEX"):
             for st in settings:
-                kw = dict(shape=shape, cell=14.0, rib=2.0, border=5.0, irregular=0.7,
+                kw = dict(shape=shape, cell=cell, rib=2.0, border=5.0, irregular=0.7,
                           corner=1.0, min_hole=4.0, seed=3, fit=True)
                 kw.update(st)
                 n += 1
@@ -1752,7 +1959,7 @@ def run_round_crosscheck(it, shapes, recorded, same_pt, rotation):
                         "seed": float(kw["seed"]), "fit": kw["fit"], "ring": plan["ring"], "spokes": sp is not None}
                 if sp:
                     fset.update(spokeWidth=sp["width"], spokeLength=sp["length"], spokeCount=float(sp["count"]),
-                                spokeAngle=sp["angle"])
+                                spokeAngle=sp["angle"], spokeMinD=float(sp["min_d"]))
                 fholes = it.call("planHoles", fR, fset)
                 r = plan["r"]
                 if len(fholes) != len(plan["holes"]):
@@ -1823,17 +2030,18 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub_ = ap.add_subparsers(dest="cmd", required=True)
     ck = sub_.add_parser("check")
-    ck.add_argument("--only", choices=["classic", "round"])
+    ck.add_argument("--only", choices=["classic", "round", "plate"])
     ck.add_argument("--jobs", type=int, default=4)
     cc = sub_.add_parser("crosscheck")
     cc.add_argument("fs", nargs="?", default="projects/leopard-vent/featurescript/leopard_vent.fs")
+    cc.add_argument("--no-plate", action="store_true", help="skip the robot plate, the slow part")
     sub_.add_parser("fallbacks", help="where round holes get a straight cut, and what it costs")
     pv = sub_.add_parser("preview", help="the round-holes picture in the docs")
     pv.add_argument("out")
     pv.add_argument("--face", default="side_plate")
     p = sub_.add_parser("png")
     p.add_argument("out")
-    allfaces = dict(FACES, **ROUND_FACES)
+    allfaces = dict(FACES, **ROUND_FACES, **PLATE_FACES)
     p.add_argument("--face", default="rect_120x80", choices=sorted(allfaces))
     p.add_argument("--shape", default="QUAD", choices=["QUAD", "TRI", "HEX"])
     p.add_argument("--crop", action="store_true")
@@ -1850,7 +2058,7 @@ def main():
     if a.cmd == "check":
         return run_checks(only=a.only, jobs=a.jobs)
     if a.cmd == "crosscheck":
-        return run_crosscheck(a.fs)
+        return run_crosscheck(a.fs, plate=not a.no_plate)
     if a.cmd == "fallbacks":
         fallback_report()
         return 0
