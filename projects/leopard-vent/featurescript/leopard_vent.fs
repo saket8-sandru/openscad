@@ -1249,28 +1249,6 @@ function regionClip(coreIn is array, c is Vector, region is map, reach is number
     return core;
 }
 
-// The convex core of one hole, with straight cuts round every inner loop.
-// The hole itself is this grown by r.
-function holeCore(cell is array, region is map, rib is number, r is number, border is number, keepR is number) returns array
-{
-    const c = centroid2(cell);
-    var core = insetConvex(cell, rib / 2 + r);
-    if (size(core) < 3)
-        return [];
-    var cellR = 0;
-    for (var q in cell)
-        cellR = max(cellR, norm(q - c));
-    core = regionClip(core, c, region, cellR + border + r + SAG + 1e-6, border, r, false);
-    if (size(core) < 3)
-        return [];
-    core = tidy(ccw(core));
-    if (size(core) < 3)
-        return [];
-    if (keepR > r && size(insetConvex(core, keepR - r)) < 3)
-        return [];
-    return core;
-}
-
 
 // ---------------------------------------------------------------- round holes
 //

@@ -631,24 +631,6 @@ def region_clip(core, c, R, reach, border, r, ring=None):
     return core
 
 
-def hole_core(cell, R, rib, r, border, keep_r):
-    """The convex core of one hole: the hole is this grown by r."""
-    c = centroid(cell)
-    core = inset_convex(cell, rib / 2 + r)
-    if not core:
-        return []
-    cell_r = max(vlen(sub(q, c)) for q in cell)
-    core = region_clip(core, c, R, cell_r + border + r + SAG + 1e-6, border, r)
-    if not core:
-        return []
-    core = tidy(ccw(core))
-    if not core:
-        return []
-    if keep_r > r and not inset_convex(core, keep_r - r):
-        return []
-    return core
-
-
 # ---------------------------------------------------------------- round holes
 #
 # A round hole already in the face -- a bolt, a bearing -- can get a round
@@ -1690,8 +1672,11 @@ def run_crosscheck(fs_path):
                     errs.append(f"cells differ ({len(cells)} vs {len(fcells)})")
                 else:
                     for k, c in enumerate(cells):
-                        mc = hole_core(c, R, kw["rib"], r, bw, keep_r)
-                        fc = it.call("holeCore", fcells[k], fR, kw["rib"], r, bw, keep_r)
+                        # Round rings off: no discs, one straight cut per inner loop.
+                        mh = cell_holes(c, R, kw["rib"], r, bw, keep_r)
+                        fh = it.call("cellHoles", fcells[k], fR, kw["rib"], r, bw, keep_r, False, [])
+                        mc = mh[0]["core"] if mh else []
+                        fc = fh[0]["core"] if fh else []
                         if not same_poly(mc, fc):
                             errs.append(f"core {k} differs")
                             break

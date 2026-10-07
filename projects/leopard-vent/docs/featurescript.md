@@ -42,7 +42,7 @@ had no Onshape access while writing it. Here is what that means in practice:
 
 1. In any Onshape document, create a **Feature Studio**.
 2. Select everything in it and paste `leopard_vent.fs` over it — **the whole
-   file**, about 1,950 lines, ending with `holeArea`. Copy it with GitHub's
+   file**, about 1,930 lines, ending with `holeArea`. Copy it with GitHub's
    "Copy raw file" button or from the downloaded file, not from a preview
    that may cut it short (a short paste shows up as
    `missing TOP_SEMI at '<EOF>'`). The file's first two lines are the ones Onshape writes for a
