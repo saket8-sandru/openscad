@@ -231,8 +231,9 @@ and the sketch is deleted. That last part is the same with bands on.
 Reproduce with:
 
 ```bash
-python3 tools/fsmirror.py check        # the geometry, measured (about an hour)
-python3 tools/fsmirror.py crosscheck   # the .fs file's own code, against it (about an hour)
+python3 tools/fsmirror.py check        # the geometry, measured (about 35 minutes on 2 cores)
+python3 tools/fsmirror.py crosscheck   # the .fs file's own code, against it (about 15 minutes)
+python3 tools/fsmirror.py fallbacks    # how often the bands retry, or fall back to straight cuts
 ```
 
 **`fsmirror.py check` — the geometry is right.** `tools/fsmirror.py` is a
@@ -266,7 +267,7 @@ Three matrices, each case 3 seeds:
   hole, an oval notch and a domed top — edges that are neither line nor arc,
   sampled as a spline would be — × 3 cell shapes × 11 settings (band 1–10 mm,
   struts on every round hole or only from 10 mm, rib 0.8–4 mm, corner radius
-  0–4 mm, irregularity 0–1, cropped as well as fitted): **(being re-measured on this version)**.
+  0–4 mm, irregularity 0–1, cropped as well as fitted): **1,287/1,287 pass**.
 - **The robot plate** at the top, with 30 mm cells: straight cuts, bands,
   bands and struts, smallest hole 10 mm, and struts on every round hole:
   **(being re-measured on this version)**.
@@ -274,16 +275,56 @@ Three matrices, each case 3 seeds:
 To 1e-6 mm, on the safe side: no web thinner than the rib, no hole nearer
 than the border to the outline or nearer than the band width to a hole in the
 face; none outside the face, no loose pieces, no outline off its exact shape.
-Default settings:
+At the defaults (bands 5 mm; struts on with 6 sides; band — : no hole in that
+face; `curved=` counts holes that follow a band or the outline's offset,
+`straight=` the ones that fell back to straight cuts):
 
 ```
-(being re-measured on this version)
+  rect_120x80     QUAD holes=40   rib=2.0000 border=5.0000 band=  —    curved=22 straight=0 smallest=8.721 open=61.3%
+  rect_120x80     TRI  holes=44   rib=2.0000 border=5.0000 band=  —    curved=18 straight=0 smallest=5.013 open=56.8%
+  rect_120x80     HEX  holes=45   rib=2.0000 border=5.0000 band=  —    curved=21 straight=0 smallest=5.545 open=61.0%
+  rounded_rect    QUAD holes=40   rib=2.0000 border=5.0000 band=  —    curved=22 straight=0 smallest=8.721 open=61.6%
+  rounded_rect    TRI  holes=44   rib=2.0000 border=5.0000 band=  —    curved=18 straight=0 smallest=5.013 open=57.1%
+  rounded_rect    HEX  holes=45   rib=2.0000 border=5.0000 band=  —    curved=21 straight=0 smallest=5.545 open=61.3%
+  circle_d100     QUAD holes=40   rib=2.0000 border=5.0000 band=  —    curved=40 straight=0 smallest=4.476 open=57.0%
+  circle_d100     TRI  holes=35   rib=2.0000 border=5.0000 band=  —    curved=35 straight=0 smallest=4.041 open=56.4%
+  circle_d100     HEX  holes=37   rib=2.0000 border=5.0000 band=  —    curved=37 straight=0 smallest=5.066 open=61.6%
+  rect_4_screws   QUAD holes=48   rib=2.0000 border=5.0000 band=5.0000 curved=23 straight=0 smallest=4.922 open=57.8%
+  rect_4_screws   TRI  holes=43   rib=2.0000 border=5.0000 band=5.0000 curved=17 straight=0 smallest=5.757 open=55.8%
+  rect_4_screws   HEX  holes=45   rib=2.0000 border=5.0000 band=5.0000 curved=22 straight=0 smallest=4.460 open=60.2%
+  plate_big_hole  QUAD holes=54   rib=2.0000 border=5.0000 band=5.0000 curved=44 straight=0 smallest=5.025 open=57.2%
+  plate_big_hole  TRI  holes=56   rib=2.0000 border=5.0000 band=5.0000 curved=33 straight=0 smallest=5.067 open=52.4%
+  plate_big_hole  HEX  holes=46   rib=2.0000 border=5.0000 band=5.0000 curved=36 straight=0 smallest=4.830 open=60.0%
+  plate_slot      QUAD holes=34   rib=2.0000 border=5.0000 band=5.0000 curved=29 straight=0 smallest=8.721 open=53.4%
+  plate_slot      TRI  holes=44   rib=2.0000 border=5.0000 band=5.0000 curved=36 straight=0 smallest=4.648 open=50.0%
+  plate_slot      HEX  holes=42   rib=2.0000 border=5.0000 band=5.0000 curved=31 straight=0 smallest=4.443 open=52.2%
+  l_shape         QUAD holes=31   rib=2.0000 border=5.0000 band=  —    curved=22 straight=0 smallest=4.155 open=54.2%
+  l_shape         TRI  holes=32   rib=2.0000 border=5.0000 band=  —    curved=23 straight=0 smallest=4.866 open=52.8%
+  l_shape         HEX  holes=30   rib=2.0000 border=5.0000 band=  —    curved=20 straight=0 smallest=5.363 open=55.5%
+  notched         QUAD holes=25   rib=2.0000 border=5.0000 band=  —    curved=21 straight=0 smallest=7.932 open=53.9%
+  notched         TRI  holes=25   rib=2.0000 border=5.0000 band=  —    curved=17 straight=0 smallest=6.014 open=50.7%
+  notched         HEX  holes=29   rib=2.0000 border=5.0000 band=  —    curved=22 straight=0 smallest=4.460 open=52.2%
+  annulus         QUAD holes=43   rib=2.0000 border=5.0000 band=5.0000 curved=43 straight=0 smallest=4.048 open=51.8%
+  annulus         TRI  holes=46   rib=2.0000 border=5.0000 band=5.0000 curved=46 straight=0 smallest=4.420 open=50.6%
+  annulus         HEX  holes=35   rib=2.0000 border=5.0000 band=5.0000 curved=35 straight=0 smallest=5.635 open=57.1%
+  slots_plate     QUAD holes=78   rib=2.0000 border=5.0000 band=5.0000 curved=53 straight=0 smallest=4.109 open=54.1%
+  slots_plate     TRI  holes=77   rib=2.0000 border=5.0000 band=5.0000 curved=49 straight=0 smallest=4.422 open=50.6%
+  slots_plate     HEX  holes=83   rib=2.0000 border=5.0000 band=5.0000 curved=57 straight=0 smallest=4.024 open=55.8%
+  side_plate      QUAD holes=117  rib=2.0000 border=5.0000 band=5.0000 curved=67 straight=0 smallest=4.455 open=58.6%
+  side_plate      TRI  holes=135  rib=2.0000 border=5.0000 band=5.0000 curved=58 straight=0 smallest=4.058 open=53.6%
+  side_plate      HEX  holes=120  rib=2.0000 border=5.0000 band=5.0000 curved=71 straight=0 smallest=4.095 open=60.1%
+  cluster         QUAD holes=46   rib=2.0000 border=5.0000 band=5.0000 curved=31 straight=0 smallest=6.194 open=56.6%
+  cluster         TRI  holes=44   rib=2.0000 border=5.0000 band=5.0000 curved=27 straight=0 smallest=4.565 open=54.3%
+  cluster         HEX  holes=44   rib=2.0000 border=5.0000 band=5.0000 curved=29 straight=0 smallest=5.635 open=58.4%
+  ellipses        QUAD holes=56   rib=2.0000 border=5.0023 band=5.0030 curved=36 straight=0 smallest=4.109 open=56.9%
+  ellipses        TRI  holes=63   rib=2.0000 border=5.0025 band=5.0030 curved=40 straight=0 smallest=4.141 open=52.0%
+  ellipses        HEX  holes=61   rib=2.0000 border=5.0023 band=5.0030 curved=37 straight=0 smallest=4.278 open=57.2%
 ```
 
-The border reads a few microns over 5 where the outline has curves that are
-not arcs (the oval face) — that is the 0.005 mm chord allowance, added on the
-safe side — and exactly 5 everywhere else, arcs included: they are offset as
-true arcs. `straight=` counts holes that fell back to straight cuts.
+The border and band read a few microns over 5 only on the oval face, whose
+curves are neither line nor arc — that is the 0.005 mm chord allowance, added
+on the safe side. Everywhere else they read exactly 5, round outlines and
+round holes included: arcs are offset as true arcs.
 
 **`fsmirror.py crosscheck` — the `.fs` file does the same thing.**
 `tools/fsinterp.py` is a small interpreter for the subset of FeatureScript the
