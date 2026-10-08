@@ -292,9 +292,15 @@ feature's maths is written in. `crosscheck` runs the actual functions in
 hole areas, and the exact `skLineSegment` / `skArc` calls `drawHole` makes —
 and requires the answer to match the mirror point for point.
 
-Result: (being re-run on this version.) The interpreter also checks every type annotation as
-Onshape does at run time, so a wrong `returns map` or `is Vector` fails here
-rather than in your Part Studio.
+Result: **586/586 cases identical** — 210 stage by stage with straight cuts on
+10 faces; 351 through the whole plan on the 13 band faces (9 settings, from
+bands off to bands with struts, × 3 cell shapes); 12 on the robot plate; the
+one test case that falls back to straight cuts; and the fallback itself, run
+on every cell of four faces with holes. 31,814 holes in all, compared point
+by point: 20,000 plain, 10,884 following a band, 930 cut straight. The
+interpreter also checks every type annotation as Onshape does at run time,
+so a wrong `returns map` or `is Vector` fails here rather than in your Part
+Studio.
 
 What it has caught, over the versions: a constant mistyped after its tenth
 digit; a Python list that hid the *Fit cells* setting in the mirror; a
