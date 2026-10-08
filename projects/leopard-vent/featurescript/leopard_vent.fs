@@ -2130,6 +2130,62 @@ function loopPoints(lp is array) returns array
     return out;
 }
 
+// Points along one piece, both ends included.
+function piecePoints(p is map) returns array
+{
+    const k = p.kind == "L" ? 8 : max(8, ceil(p.sweep * 16));
+    var out = [];
+    for (var j = 0; j <= k; j += 1)
+        out = append(out, pieceAt(p, j / k));
+    return out;
+}
+
+// Where a loop comes back within 2d of itself across the plate -- a hole
+// wrapped round a boss whose band only just reaches past the core's edge. The
+// web joining the boss to the rest would be thinner than a rib, or shut off
+// altogether once the hole is grown by the corner radius. Returns { s, t },
+// the two nearest points across the narrowest such neck, or undefined. Only a
+// gap with nothing else of the loop nearer its middle than its ends counts:
+// the ends of a short arc round a band are close too, but the arc runs
+// between them; and so do the sides of a sharp corner, but across the hole.
+function neck(lp is array, d is number)
+{
+    const n = size(lp);
+    var best = undefined;
+    for (var i = 0; i < n; i += 1)
+        for (var j = i + 2; j < n; j += 1)
+        {
+            if ((i == 0 && j == n - 1) || piecePieceDist(lp[i], lp[j]) >= 2 * d - TAU)
+                continue;
+            var g = inf;
+            var s = undefined;
+            var t = undefined;
+            for (var x in piecePoints(lp[i]))
+                for (var y in piecePoints(lp[j]))
+                {
+                    const gap = norm(x - y);
+                    if (gap < g - 1e-12)        // first of a tie, in any arithmetic
+                    {
+                        g = gap;
+                        s = x;
+                        t = y;
+                    }
+                }
+            const m = (s + t) * 0.5;
+            if (winding(lp, m) != 0)
+                continue;
+            var between = false;
+            for (var k = 0; k < n; k += 1)
+                if (k != i && k != j && pieceDist(lp[k], m) < g / 2 - 1e-9 * (1 + g))
+                    between = true;
+            if (between)
+                continue;
+            if (best == undefined || g < best.g)
+                best = { "g" : g, "s" : s, "t" : t };
+        }
+    return best;
+}
+
 
 // ---------------------------------------------------------------- holes from bands
 
@@ -2230,6 +2286,19 @@ function bandHoles(coreIn is array, ctx is map, rib is number, r is number, bord
     var comps = [];
     for (var c in comps0)
         comps = append(comps, splitBigArcs(c));
+    for (var c in comps)
+    {
+        const nk = neck(c, d);
+        if (nk != undefined)
+        {
+            // A boss held by a web thinner than a rib: split the core by a rib
+            // through the web instead -- across the gap, so through the boss.
+            if (depth >= 2)
+                return straightCore(core, ctx, r, border, ring, keepR);
+            const u = norm(nk.t - nk.s) > TAU ? normalize(nk.t - nk.s) : vector(1, 0);
+            return bestSplit(core, (nk.s + nk.t) * 0.5, [atan2(-u[0], u[1]) / radian], ctx, rib, r, border, ring, keepR, depth);
+        }
+    }
     for (var c in comps)
         if (!loopOk(c))
             return retryCore(core, ctx, rib, r, border, ring, keepR, depth, nudged);

@@ -1291,6 +1291,43 @@ def loop_points(loop):
     return out
 
 
+def piece_points(p):
+    """Points along one piece, both ends included."""
+    k = 8 if p["kind"] == "L" else max(8, math.ceil(p["sweep"] * 16))
+    return [piece_at(p, j / k) for j in range(k + 1)]
+
+
+def neck(loop, d):
+    """Where a loop comes back within 2d of itself across the plate -- a hole
+    wrapped round a boss whose band only just reaches past the core's edge.
+    The web joining the boss to the rest would be thinner than a rib, or shut
+    off altogether once the hole is grown by the corner radius. Returns the
+    two nearest points across the narrowest such neck, or None. Only a gap
+    with nothing else of the loop nearer its middle than its ends counts: the
+    ends of a short arc round a band are close too, but the arc runs between
+    them; and so do the sides of a sharp corner, but across the hole."""
+    n = len(loop)
+    best = None
+    for i in range(n):
+        for j in range(i + 2, n):
+            if (i == 0 and j == n - 1) or piece_piece_dist(loop[i], loop[j]) >= 2 * d - TAU:
+                continue
+            g, s, t = math.inf, None, None
+            for x in piece_points(loop[i]):
+                for y in piece_points(loop[j]):
+                    gap = vlen(sub(x, y))
+                    if gap < g - 1e-12:           # first of a tie, in any arithmetic
+                        g, s, t = gap, x, y
+            m = mul(add(s, t), 0.5)
+            if winding(loop, m) != 0:
+                continue
+            if any(piece_dist(loop[k], m) < g / 2 - 1e-9 * (1 + g) for k in range(n) if k != i and k != j):
+                continue
+            if best is None or g < best[0]:
+                best = (g, s, t)
+    return None if best is None else (best[1], best[2])
+
+
 # ---------------------------------------------------------------- holes from bands
 
 def straight_core(core, ctx, r, border, ring, keep_r):
@@ -1359,6 +1396,17 @@ def band_holes(core, ctx, rib, r, border, ring, keep_r, depth=0, nudged=False):
                 return best_split(core, mul(add(x, y), 0.5), [math.atan2(-u[0], u[1])], ctx, rib, r, border,
                                   ring, keep_r, depth)
     comps = [split_big_arcs(c) for c in comps]
+    for c in comps:
+        nk = neck(c, d)
+        if nk:
+            # A boss held by a web thinner than a rib: split the core by a rib
+            # through the web instead -- across the gap, so through the boss.
+            if depth >= 2:
+                return straight_core(core, ctx, r, border, ring, keep_r)
+            s, t = nk
+            u = unit(sub(t, s)) if vlen(sub(t, s)) > TAU else (1.0, 0.0)
+            return best_split(core, mul(add(s, t), 0.5), [math.atan2(-u[0], u[1])], ctx, rib, r, border,
+                              ring, keep_r, depth)
     if not all(loop_ok(c) for c in comps):
         return retry(core, ctx, rib, r, border, ring, keep_r, depth, nudged)
     if k <= 0:
@@ -1534,7 +1582,7 @@ def plan_face(edges, shape="QUAD", cell=14.0, rib=2.0, border=5.0, irregular=0.7
     if ring is not None:
         ring = max(ring, rib)
     R = build_region(edges, grid_size=max(cell * PITCH[shape], 1.0))
-    plan = dict(holes=[], cores=[], r=r, keep_r=keep_r, border=bw, hw=hw, ring=ring,
+    plan = dict(holes=[], cores=[], r=r, keep_r=keep_r, border=bw, hw=hw, ring=ring, rib=rib,
                 circles=R.circles, rosettes=[])
     cells = None
     if fit:
@@ -1880,7 +1928,7 @@ def measure(edges, plan):
     region = true_region(edges)
     ring = plan.get("ring")
     res = dict(holes=len(plan["holes"]), rib=math.inf, border=math.inf, ring=math.inf,
-               smallest=math.inf, outside=0, invalid=0, islands=0, outline=0.0, open=0.0,
+               smallest=math.inf, outside=0, invalid=0, islands=0, webs=0, outline=0.0, open=0.0,
                curved=sum(1 for h in plan["holes"] if "loop" in h), cuts=sum(1 for h in plan["holes"] if h.get("cut")))
     if not plan["holes"]:
         return res
@@ -1916,11 +1964,20 @@ def measure(edges, plan):
         polys.append(hp)
         if not hp.is_valid:
             res["invalid"] += 1
+            continue
+        # A hole that wraps round part of the plate and holds it by a web
+        # thinner than the rib closes round it when grown by half a rib --
+        # which the web between two holes, measured above, cannot show.
+        grown = hp.buffer(plan["rib"] / 2 - 1e-6, quad_segs=64)
+        if sum(len(g.interiors) for g in getattr(grown, "geoms", [grown])):
+            res["webs"] += 1
         if not region.contains(p.representative_point()):
             res["outside"] += 1
         res["outline"] = max(res["outline"], outline_error(h, r, p))
         mic = shapely.maximum_inscribed_circle(p, tolerance=0.005).length if p.area > 0 else 0.0
         res["smallest"] = min(res["smallest"], 2 * (mic + r))
+    if res["invalid"]:
+        return res                        # a failure already, and shapely cannot union them
     left = region.difference(shapely.unary_union(polys))
     res["islands"] = len(getattr(left, "geoms", [left])) - 1
     res["open"] = 100 * sum(shape_area(h, r) for h in plan["holes"]) / region.area
@@ -1943,6 +2000,8 @@ def case_errors(plan, m, kw):
         errs.append(f"{m['invalid']} self-intersecting outlines")
     if m["islands"]:
         errs.append(f"{m['islands']} loose islands")
+    if m["webs"]:
+        errs.append(f"{m['webs']} holes holding part of the plate by a web under the rib")
     if m["outline"] > 1e-6:
         errs.append(f"outline off by {m['outline']:.2e}")
     if m["holes"] and m["smallest"] < 2 * min(plan["keep_r"], plan["hw"]) - 0.02 and plan["keep_r"] > plan["r"]:

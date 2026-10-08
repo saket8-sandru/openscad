@@ -135,6 +135,11 @@ chunky.
   angles keeps the most hole.
 - **A core split into two pieces closer than a rib** by a band running across
   it is split again by a rib between them.
+- **A boss whose band only just reaches past a cell's edge** — by less than
+  about a quarter of a millimetre — would leave the hole wrapped almost all
+  the way round it, holding the boss by a web thinner than a rib, or by
+  nothing once the corners are rounded. That is split by a rib through the
+  boss too.
 - **A piece too small to hold the smallest hole** is left solid, as any hole is.
   That is why small solid wedges remain here and there, where a band leaves a
   cell only a sliver.
@@ -246,6 +251,9 @@ chords the feature uses — for:
   hole in the face (round holes as true circles);
 - that every hole lies inside the face, that no piece of the plate is left
   loose, and that no outline crosses itself;
+- that no hole wraps round part of the plate and holds it by a web thinner
+  than the rib (each hole, grown by half a rib, must not close round
+  anything);
 - that every sketched outline is exactly the rounded shape it stands for:
   each loop closes, and every point along every line and arc is the corner
   radius from the hole's core, to 1e-6 mm;
@@ -267,7 +275,7 @@ Three matrices, each case 3 seeds:
   hole, an oval notch and a domed top — edges that are neither line nor arc,
   sampled as a spline would be — × 3 cell shapes × 11 settings (band 1–10 mm,
   struts on every round hole or only from 10 mm, rib 0.8–4 mm, corner radius
-  0–4 mm, irregularity 0–1, cropped as well as fitted): **1,287/1,287 pass**.
+  0–4 mm, irregularity 0–1, cropped as well as fitted): **(being re-measured after the neck fix)**.
 - **The robot plate** at the top, with 30 mm cells: straight cuts, bands,
   bands and struts, smallest hole 10 mm, and struts on every round hole:
   **(being re-measured on this version)**.
@@ -354,7 +362,13 @@ settles it the same way in both, and took the number of retried holes from
 117 to 70. Writing the crosscheck also showed that cropped cells with struts
 could not be bounded: a seed at the edge of the pattern has an open Voronoi
 cell, and the code only stopped when the numbers overflowed. Cropped strut
-cells are now clipped to the face's box grown by a cell's reach.
+cells are now clipped to the face's box grown by a cell's reach. And the
+measured check on the robot plate found one hole, on one seed, wrapped round
+a bolt boss whose band poked 0.02 mm past the cell's edge: rounded, the hole
+closed round the boss and its outline crossed itself. Nothing measured until
+then could see that — the web between two holes was measured, not the web
+inside one — so the check now measures that too, and such necks are split
+like a boss inside a cell.
 
 **Not tested — needs Onshape:**
 
@@ -373,7 +387,7 @@ cells are now clipped to the face's box grown by a cell's reach.
   in one sketch. The maths per hole is heavier than the straight cuts': each
   core is crossed with every offset curve near it. The mirror plans the robot
   plate in about a quarter of a second of Python; the interpreter, which is
-  far slower than Onshape, takes about 13 seconds — less than the 22 it
+  far slower than Onshape, takes about 15 seconds — less than the 22 it
   takes over straight cuts, since a round hole is one exact arc to the bands
   but dozens of chords to the straight cuts. How long Onshape takes is
   unknown.
