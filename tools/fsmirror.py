@@ -2228,11 +2228,13 @@ XC_BANDS = [dict(), dict(ring=5.0), dict(ring=5.0, struts=True), dict(ring=3.0, 
 
 XC_PLATE = [dict(), dict(ring=5.0), dict(ring=5.0, struts=True), dict(ring=5.0, struts=True, min_d=0.0)]
 
-# The one case where the bands fall back to straight cuts in the test faces
-# (see `fallbacks`), run by name since the matrix above misses it; and the
-# faces whose every cell is also put through the fallback directly, which
-# keeps the band width, not the border, off their holes.
-XC_FALLBACK = [("circle_d100", "QUAD", dict(ring=5.0, seed=23))]
+# Cases the matrices above miss, run by name: the one where the bands fall
+# back to straight cuts in the test faces (see `fallbacks`), and the one where
+# a hole wraps a boss through a thin neck and is split. And the faces whose
+# every cell is also put through the fallback directly, which keeps the band
+# width, not the border, off their holes.
+XC_NAMED = [("circle_d100", "QUAD", dict(ring=5.0, seed=23), 14.0),
+            ("robot_plate", "QUAD", dict(ring=5.0, seed=23), 30.0)]
 XC_STRAIGHT = ["rect_4_screws", "plate_slot", "slots_plate", "side_plate"]
 
 
@@ -2483,9 +2485,10 @@ def xc_job(job):
         return kind, fname, xc_classic(fs_path, fname)
     if kind == "bands":
         return kind, fname, xc_bands(fs_path, fname, BAND_FACES, every(XC_BANDS), 14.0)
-    if kind == "fallback":
-        return kind, fname, xc_bands(fs_path, fname, BAND_FACES,
-                                     [(sh, st) for f, sh, st in XC_FALLBACK if f == fname], 14.0)
+    if kind == "named":
+        cases = [(sh, st, cell) for f, sh, st, cell in XC_NAMED if f == fname]
+        return kind, fname, xc_bands(fs_path, fname, dict(BAND_FACES, **PLATE_FACES),
+                                     [(sh, st) for sh, st, _ in cases], cases[0][2])
     if kind == "straight":
         return kind, fname, xc_straight(fs_path, fname)
     return kind, fname, xc_bands(fs_path, fname, PLATE_FACES, every(XC_PLATE), 30.0)
@@ -2498,7 +2501,7 @@ def run_crosscheck(fs_path, plate=True, jobs=4, only=None, face=None):
         work += [("classic", fs_path, f) for f in FACES]
     if only in (None, "bands"):
         work += [("bands", fs_path, f) for f in BAND_FACES]
-        work += [("fallback", fs_path, f) for f in dict.fromkeys(f for f, _, _ in XC_FALLBACK)]
+        work += [("named", fs_path, f) for f in dict.fromkeys(f for f, _, _, _ in XC_NAMED)]
         work += [("straight", fs_path, f) for f in XC_STRAIGHT]
     if only in (None, "plate") and plate:
         work += [("plate", fs_path, f) for f in PLATE_FACES]

@@ -236,8 +236,8 @@ and the sketch is deleted. That last part is the same with bands on.
 Reproduce with:
 
 ```bash
-python3 tools/fsmirror.py check        # the geometry, measured (about 35 minutes on 2 cores)
-python3 tools/fsmirror.py crosscheck   # the .fs file's own code, against it (about 15 minutes)
+python3 tools/fsmirror.py check        # the geometry, measured (about 1.5 hours on 2 cores)
+python3 tools/fsmirror.py crosscheck   # the .fs file's own code, against it (about 20 minutes)
 python3 tools/fsmirror.py fallbacks    # how often the bands retry, or fall back to straight cuts
 ```
 
@@ -275,17 +275,18 @@ Three matrices, each case 3 seeds:
   hole, an oval notch and a domed top — edges that are neither line nor arc,
   sampled as a spline would be — × 3 cell shapes × 11 settings (band 1–10 mm,
   struts on every round hole or only from 10 mm, rib 0.8–4 mm, corner radius
-  0–4 mm, irregularity 0–1, cropped as well as fitted): **(being re-measured after the neck fix)**.
+  0–4 mm, irregularity 0–1, cropped as well as fitted): **1,287/1,287 pass**.
 - **The robot plate** at the top, with 30 mm cells: straight cuts, bands,
   bands and struts, smallest hole 10 mm, and struts on every round hole:
-  **(being re-measured on this version)**.
+  **45/45 pass**.
 
 To 1e-6 mm, on the safe side: no web thinner than the rib, no hole nearer
 than the border to the outline or nearer than the band width to a hole in the
 face; none outside the face, no loose pieces, no outline off its exact shape.
-At the defaults (bands 5 mm; struts on with 6 sides; band — : no hole in that
-face; `curved=` counts holes that follow a band or the outline's offset,
-`straight=` the ones that fell back to straight cuts):
+At the defaults (bands 5 mm; struts on with 6 sides; the robot plate with
+30 mm cells; band — : no hole in that face; `curved=` counts holes that
+follow a band or the outline's offset, `straight=` the ones that fell back to
+straight cuts):
 
 ```
   rect_120x80     QUAD holes=40   rib=2.0000 border=5.0000 band=  —    curved=22 straight=0 smallest=8.721 open=61.3%
@@ -327,6 +328,9 @@ face; `curved=` counts holes that follow a band or the outline's offset,
   ellipses        QUAD holes=56   rib=2.0000 border=5.0023 band=5.0030 curved=36 straight=0 smallest=4.109 open=56.9%
   ellipses        TRI  holes=63   rib=2.0000 border=5.0025 band=5.0030 curved=40 straight=0 smallest=4.141 open=52.0%
   ellipses        HEX  holes=61   rib=2.0000 border=5.0023 band=5.0030 curved=37 straight=0 smallest=4.278 open=57.2%
+  robot_plate     QUAD holes=184  rib=2.0000 border=5.0000 band=5.0000 curved=140 straight=0 smallest=4.207 open=69.9%
+  robot_plate     TRI  holes=190  rib=2.0000 border=5.0000 band=5.0000 curved=145 straight=0 smallest=4.086 open=68.3%
+  robot_plate     HEX  holes=166  rib=2.0000 border=5.0000 band=5.0000 curved=126 straight=0 smallest=4.397 open=71.1%
 ```
 
 The border and band read a few microns over 5 only on the oval face, whose
@@ -341,12 +345,14 @@ feature's maths is written in. `crosscheck` runs the actual functions in
 hole areas, and the exact `skLineSegment` / `skArc` calls `drawHole` makes —
 and requires the answer to match the mirror point for point.
 
-Result: **586/586 cases identical** — 210 stage by stage with straight cuts on
+Result: **587/587 cases identical** — 210 stage by stage with straight cuts on
 10 faces; 351 through the whole plan on the 13 band faces (9 settings, from
 bands off to bands with struts, × 3 cell shapes); 12 on the robot plate; the
-one test case that falls back to straight cuts; and the fallback itself, run
-on every cell of four faces with holes. 31,814 holes in all, compared point
-by point: 20,000 plain, 10,884 following a band, 930 cut straight. The
+two cases the matrices miss, run by name — the one test case that falls back
+to straight cuts, and the robot plate case split at a neck; and the fallback
+itself, run on every cell of four faces with holes. 32,003 holes in all,
+compared point by point: 20,049 plain, 11,024 following a band, 930 cut
+straight. The
 interpreter also checks every type annotation as Onshape does at run time,
 so a wrong `returns map` or `is Vector` fails here rather than in your Part
 Studio.
