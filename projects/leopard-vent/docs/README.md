@@ -16,10 +16,12 @@ Use it three ways:
    from your own part. See [Using it in your own part](#using-it-in-your-own-part).
 3. **In Onshape** — [`featurescript/leopard_vent.fs`](../featurescript/leopard_vent.fs)
    is the same pattern as a custom feature: pick planar faces and it cuts them.
-   It also does something this OpenSCAD version does not: round holes already
-   in the face (bolts, bearings) get a true round ring, and optionally a wheel
-   of spokes into the web. Its geometry is tested; it has **not yet been run
-   end to end inside Onshape**. See [featurescript.md](featurescript.md).
+   It also does something this OpenSCAD version does not: the material round
+   the outline and round every hole already in the face (bolts, bearings,
+   slots) is an exact offset band that the ribs run into, and with 6-sided
+   cells, round holes get struts radiating into the web. Its geometry is
+   tested; it has **not yet been run end to end inside Onshape** by me. See
+   [featurescript.md](featurescript.md).
 
 ## The rib thickness is a guarantee
 

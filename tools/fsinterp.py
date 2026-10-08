@@ -11,10 +11,11 @@ the measurements were taken on. It is not a FeatureScript implementation:
   * It parses the whole file, but only runs top-level `function`s and simple
     `const`s. Feature definitions, annotations, enums' annotations and bound
     specs are skipped or stubbed.
-  * Values: numbers, strings, booleans, undefined, arrays (value semantics on
-    index assignment), maps, Vectors (with FeatureScript's operators), enums
-    and functions. Units are plain multipliers: millimeter = 1, degree =
-    pi/180, radian = 1 -- enough for maths written in millimetres.
+  * Values: numbers, strings, booleans, undefined, arrays and maps (with
+    value semantics on every write into one: a[i] = v, m.k = v, a[i].k = v),
+    Vectors (with FeatureScript's operators), enums and functions. Units are
+    plain multipliers: millimeter = 1, degree = pi/180, radian = 1 -- enough
+    for maths written in millimetres; so atan2 here returns plain radians.
   * Built-ins: the std functions that file's maths calls, and no others.
     Anything else is an error, which is the point -- a typo in a function
     name fails here instead of in Onshape.
@@ -567,6 +568,7 @@ BUILTINS = {
     "sin": lambda a: math.sin(_num(a)),
     "cos": lambda a: math.cos(_num(a)),
     "acos": lambda x: math.acos(_num(x)),
+    "atan2": lambda y, x: math.atan2(_num(y), _num(x)),   # radians: FeatureScript's comes with units
     "roundToPrecision": fs_round_to,
     "regenError": lambda msg, *rest: {"message": msg},
     "PI": math.pi,
@@ -667,21 +669,36 @@ class Interp:
         if op != "=":
             cur = self.eval(target, env)
             value = self.binop(op[0], cur, value)
+        self.store(target, value, env)
+
+    def store(self, target, value, env):
+        """x = v, a[i] = v, m.k = v, and any nesting of them (a[i].k[j] = v).
+        FeatureScript containers are values: each one on the way down is
+        copied before it is written into, and written back in turn."""
         if target[0] == "name":
             env.set(target[1], value)
-        elif target[0] == "index" and target[1][0] == "name":
-            # FeatureScript containers are values: copy before writing into one.
-            name = target[1][1]
-            container = env.get(name)
-            container = dict(container) if isinstance(container, dict) else list(container)
-            key = self.eval(target[2], env)
-            if isinstance(container, list):
-                container[int(key)] = value
-            else:
-                container[key] = value
-            env.set(name, container)
-        else:
+            return
+        if target[0] not in ("index", "member"):
             raise FsError(f"cannot assign to {target}")
+        container = self.eval(target[1], env)
+        if target[0] == "member":
+            if not isinstance(container, dict):
+                raise FsError(f"member .{target[2]} of a non-map {container!r:.60}")
+            container = dict(container)
+            container[target[2]] = value
+        elif isinstance(container, dict):
+            container = dict(container)
+            container[self.eval(target[2], env)] = value
+        elif isinstance(container, (list, tuple)) and not isinstance(container, Vec):
+            container = list(container)
+            key = self.eval(target[2], env)
+            i = int(key)
+            if key != i or i < 0 or i >= len(container):
+                raise FsError(f"index {key} out of range for size {len(container)}")
+            container[i] = value
+        else:
+            raise FsError(f"indexing a {type(container).__name__} to assign")
+        self.store(target[1], container, env)
 
     # expressions -------------------------------------------------------
     def truth(self, v):

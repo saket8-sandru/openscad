@@ -13,33 +13,40 @@ import(path : "onshape/std/common.fs", version : "3083.0");
 //
 // The rib is exact, by construction. The cells tile the plane edge to edge
 // and each is shrunk by half a rib, so facing holes are exactly one rib apart
-// and junctions only come out thicker. The border and the corner rounding are
-// built the same way, by moving straight lines and never by approximation:
-// every hole is a convex "core" polygon -- less, beside a round hole, one disc
-// -- sketched as its edges pushed out by the corner radius and joined by true
-// arcs.
+// and junctions only come out thicker. The corner rounding is exact the same
+// way: each hole is worked out shrunk by the corner radius -- its "core" --
+// and sketched grown back by it, every edge pushed out by the radius and
+// every corner a true arc.
 //
-// The face outline is handled in maths, not with an offset, because offsetting
-// a face boundary inward fails as soon as the border is larger than one of its
-// fillets. The outline is sampled into chords (no more than 0.005mm off a
-// curve), and each hole is clipped by the chords near it. That is exact for a
-// convex outline. Near an inside corner it trims holes a little more than
-// strictly necessary -- never less.
+// Exact bands (on by default): the material left round the outline (the
+// border) and round every hole already in the face (the band width) is an
+// exact offset of those edges -- lines parallel to straight edges, arcs
+// concentric with round ones, arcs round inside corners -- and each cell's
+// hole is its core with that taken out. Where a hole meets a band it follows
+// it, so ribs run into the band and nothing beyond it is filled in. This is
+// worked out in maths, not with Onshape's offset, which fails as soon as the
+// border is bigger than one of the face's fillets. Lines and arcs of the face
+// are used exactly; any other curve is sampled into chords, and its loop is
+// kept a 0.005 mm chord allowance further off. A cell whose bands cannot be
+// drawn cleanly is tried again 0.05 mm smaller (1 hole in 170 across the test
+// faces) and failing that (1 in 6000) gets the straight cuts below, which
+// only ever leave more material.
 //
-// Round holes already in the face (bolts, bearings) get a round ring: each
-// hole beside one is bitten by a disc, so its edge there is a true arc about
-// the same centre, a set ring width off it. With spokes on, each round hole
-// also gets a wheel -- its ring, a ring of sector holes split by straight
-// spokes, and a hoop one rib wide that the cells beyond meet -- so a load on
-// the bolt runs straight out into the web. Other inner loops (slots, odd
-// shapes) are kept clear with one straight cut each, chosen to keep the most
-// of the hole: exact beside a straight side, conservative elsewhere.
+// Struts (6-sided cells): a circular hole of at least a set size gets a ring
+// of cells round it, so the ribs between them run straight out from its band
+// into the web, like spokes, and a knock on the bolt has a straight path into
+// the plate. They are ordinary cell edges, one rib thick like every other.
+//
+// With bands off, every hole is cut straight: by the outline's chords, and by
+// one straight cut per hole in the face, chosen to keep the most of the hole
+// -- exact beside a straight edge, conservative elsewhere.
 //
 // Tested outside Onshape, in the repository this ships with: tools/fsmirror.py
 // mirrors this geometry function for function and measures it against the
 // true face outline, and tools/fsinterp.py runs this file's own maths --
-// type annotations included -- and matches the mirror point for point. The
-// Onshape calls themselves have never been run. See ../docs/featurescript.md.
+// type annotations included -- and matches the mirror point for point. What
+// that cannot cover is the Onshape calls themselves: reading the face, and
+// the sketch, extrude and boolean. See ../docs/featurescript.md.
 //
 // Paste over everything in a new Feature Studio: the first two lines are the
 // ones Onshape 3083 writes itself. Every std call here was checked against the
@@ -135,27 +142,7 @@ const RING_BOUNDS =
     (yard) : 0.0055
 } as LengthBoundSpec;
 
-const SPOKE_WIDTH_BOUNDS =
-{
-    (millimeter) : [0.1, 3, 1000],
-    (centimeter) : 0.3,
-    (meter) : 0.003,
-    (inch) : 0.12,
-    (foot) : 0.01,
-    (yard) : 0.0033
-} as LengthBoundSpec;
-
-const SPOKE_LENGTH_BOUNDS =
-{
-    (millimeter) : [0.1, 10, 10000],
-    (centimeter) : 1,
-    (meter) : 0.01,
-    (inch) : 0.4,
-    (foot) : 0.033,
-    (yard) : 0.011
-} as LengthBoundSpec;
-
-const SPOKE_MIN_BOUNDS =
+const STRUT_MIN_BOUNDS =
 {
     (millimeter) : [0, 10, 10000],
     (centimeter) : 1,
@@ -164,14 +151,6 @@ const SPOKE_MIN_BOUNDS =
     (foot) : 0.033,
     (yard) : 0.011
 } as LengthBoundSpec;
-
-const SPOKE_ANGLE_BOUNDS =
-{
-    (degree) : [-360, 90, 360],
-    (radian) : 0.5 * PI
-} as AngleBoundSpec;
-
-const SPOKE_COUNT_BOUNDS = { (unitless) : [0, 0, 100] } as IntegerBoundSpec;
 
 const IRREGULARITY_BOUNDS = { (unitless) : [0, 0.7, 1] } as RealBoundSpec;
 
@@ -211,8 +190,12 @@ const MIN_RADIUS = 0.01;   // mm: a corner radius below this is drawn sharp
 const TINY_AREA = 1e-6;    // mm^2
 const CHAIN_TOL = 1e-3;    // mm: how close an edge end must be to the next start
 const START_ABOVE = 0.05;  // mm: cutters start this far outside the face
-const MIN_SWEEP = 0.02;    // radians: a shallower bite round a circle is cut straight instead
-const MIN_TURN = 0.02;     // sine of the sharpest, and flattest, corner such a bite may make
+const MIN_TURN = 0.02;     // sine of the smallest corner a hole may turn where an arc meets anything
+const TAU = 1e-9;          // mm: lengths and distances this close are equal
+const LINK = 1e-7;         // mm: ends this close are one point when pieces are joined into loops
+const PEPS = 1e-9;         // parameter slack at the ends of a piece
+const SMOOTH = 1e-6;       // sine below which two pieces meet tangentially, with no corner
+const NUDGE = 0.05;        // mm: how much a core that will not come out cleanly is shrunk to try again
 
 
 annotation { "Feature Type Name" : "Leopard vent",
@@ -250,33 +233,27 @@ export const leopardVent = defineFeature(function(context is Context, id is Id, 
         annotation { "Name" : "Fit cells to the face", "Default" : true }
         definition.fit is boolean;
 
-        annotation { "Name" : "Round rings around circular holes", "Default" : true }
+        // The ids roundRings, ringWidth, spokes and spokeMinD are kept from
+        // the version with rings and spoked wheels, so features made with it
+        // keep their settings.
+        annotation { "Name" : "Exact bands round holes and edges", "Default" : true }
         definition.roundRings is boolean;
 
         if (definition.roundRings)
         {
-            annotation { "Name" : "Ring width" }
+            annotation { "Name" : "Band width round holes" }
             isLength(definition.ringWidth, RING_BOUNDS);
 
-            annotation { "Name" : "Spokes from circular holes", "Default" : true }
-            definition.spokes is boolean;
-
-            if (definition.spokes)
+            if (definition.cellShape == LeopardCellShape.HEX)
             {
-                annotation { "Name" : "Spokes only on holes from" }
-                isLength(definition.spokeMinD, SPOKE_MIN_BOUNDS);
+                annotation { "Name" : "Struts round circular holes", "Default" : true }
+                definition.spokes is boolean;
 
-                annotation { "Name" : "Spoke thickness" }
-                isLength(definition.spokeWidth, SPOKE_WIDTH_BOUNDS);
-
-                annotation { "Name" : "Spoke length" }
-                isLength(definition.spokeLength, SPOKE_LENGTH_BOUNDS);
-
-                annotation { "Name" : "Spokes per hole (0 = auto)" }
-                isInteger(definition.spokeCount, SPOKE_COUNT_BOUNDS);
-
-                annotation { "Name" : "Spoke angle" }
-                isAngle(definition.spokeAngle, SPOKE_ANGLE_BOUNDS);
+                if (definition.spokes)
+                {
+                    annotation { "Name" : "Struts only on holes from" }
+                    isLength(definition.spokeMinD, STRUT_MIN_BOUNDS);
+                }
             }
         }
 
@@ -320,20 +297,16 @@ export const leopardVent = defineFeature(function(context is Context, id is Id, 
                 "shape" : shape, "cell" : cell, "rib" : rib, "r" : r, "keepR" : keepR,
                 "border" : max(definition.border / millimeter, rib),
                 "irregular" : definition.irregularity, "seed" : definition.seed,
-                "fit" : definition.fit, "spokes" : false
+                "fit" : definition.fit, "struts" : false
             };
-        // ring: undefined for one straight cut round each inner loop.
+        // ring: undefined for straight cuts round each hole in the face.
         if (definition.roundRings)
         {
             settings.ring = max(definition.ringWidth / millimeter, rib);
-            if (definition.spokes)
+            if (shape == LeopardCellShape.HEX && definition.spokes)
             {
-                settings.spokes = true;
-                settings.spokeMinD = definition.spokeMinD / millimeter;
-                settings.spokeWidth = definition.spokeWidth / millimeter;
-                settings.spokeLength = definition.spokeLength / millimeter;
-                settings.spokeCount = definition.spokeCount;
-                settings.spokeAngle = definition.spokeAngle / degree;
+                settings.struts = true;
+                settings.strutMinD = definition.spokeMinD / millimeter;
             }
         }
 
@@ -453,7 +426,7 @@ function planFace(context is Context, face is Query, directionQuery is Query, se
         polys = append(polys, sampleEdge(context, edges[k], face, curves[k], lengths[k], cSys));
 
     const region = buildRegion(polys, max(settings.cell * pitchOf(settings.shape), 1));
-    const holes = planHoles(region, settings);
+    const holes = planHoles(region, polys, settings);
 
     const partBox = evBox3d(context, { "topology" : qOwnerBody(face), "cSys" : cSys, "tight" : false });
     return {
@@ -494,6 +467,20 @@ function sampleEdge(context is Context, edge is Query, face is Query, curve, len
     {
         const p = fromWorld(cSys, ln.origin) / millimeter;
         pts = append(pts, vector(p[0], p[1]));
+    }
+    // The bands use the circle itself, so it had better be where the edge
+    // is. If any sample is off it, work from the chords instead -- a band
+    // SAG wider and no struts, but never one too thin.
+    if (circle != undefined)
+    {
+        for (var q in pts)
+        {
+            if (abs(norm(q - circle.c) - circle.r) > 1e-5)
+            {
+                circle = undefined;
+                break;
+            }
+        }
     }
     return { "pts" : pts, "sag" : sag, "circle" : circle };
 }
@@ -977,8 +964,9 @@ function sameCircle(p, q) returns boolean
     return p != undefined && q != undefined && norm(p.c - q.c) < 1e-6 && abs(p.r - q.r) < 1e-6;
 }
 
-// Chains sampled edges into closed loops, end to next start. A loop whose
-// every edge lies on one circle -- a round hole -- carries that circle.
+// Chains sampled edges into closed loops, end to next start: each loop's
+// points, worst chord error, the indices of its edges in order, and -- when
+// its every edge lies on one circle, a round hole -- that circle.
 function chainLoops(polys is array) returns array
 {
     var used = [];
@@ -993,6 +981,7 @@ function chainLoops(polys is array) returns array
         var chain = subArray(polys[k].pts, 0, size(polys[k].pts) - 1);
         var sag = polys[k].sag;
         var circle = polys[k].circle;
+        var idx = [k];
         const start = polys[k].pts[0];
         var end = polys[k].pts[size(polys[k].pts) - 1];
         while (norm(end - start) > CHAIN_TOL)
@@ -1009,13 +998,14 @@ function chainLoops(polys is array) returns array
             if (nxt < 0)
                 throw regenError("Could not follow the outline of a selected face.", ["faces"]);
             used[nxt] = true;
+            idx = append(idx, nxt);
             chain = concatenateArrays([chain, subArray(polys[nxt].pts, 0, size(polys[nxt].pts) - 1)]);
             sag = max(sag, polys[nxt].sag);
             if (!sameCircle(circle, polys[nxt].circle))
                 circle = undefined;
             end = polys[nxt].pts[size(polys[nxt].pts) - 1];
         }
-        loops = append(loops, { "pts" : chain, "sag" : sag, "circle" : circle });
+        loops = append(loops, { "pts" : chain, "sag" : sag, "circle" : circle, "idx" : idx });
     }
     return loops;
 }
@@ -1313,10 +1303,10 @@ function innerClip(core is array, c is Vector, hull is array, clearance is numbe
     return best;
 }
 
-// Clips a core to the face: the border along the outline, and one straight
-// cut per inner loop. With skipCircles, round inner loops are left alone
-// here: they get round rings, from finishHole.
-function regionClip(coreIn is array, c is Vector, region is map, reach is number, border is number, r is number, skipCircles is boolean) returns array
+// Clips a core to the face with straight cuts: the border along the outline,
+// and one cut per inner loop (one per triangle of a non-convex one), kept
+// innerD clear of it.
+function regionClip(coreIn is array, c is Vector, region is map, reach is number, border is number, r is number, innerD is number) returns array
 {
     var core = coreIn;
     const near = nearSegments(region, c, reach);
@@ -1341,12 +1331,10 @@ function regionClip(coreIn is array, c is Vector, region is map, reach is number
         {
             seenInner[seg.inner] = true;
             const innerLoop = region.inners[seg.inner];
-            if (skipCircles && innerLoop.circle != undefined)
-                continue;
             if (innerLoop.parts == undefined)
-                core = innerClip(core, c, innerLoop.hull, border + r + innerLoop.sag);
+                core = innerClip(core, c, innerLoop.hull, innerD + r + innerLoop.sag);
             else
-                core = partsClip(core, c, innerLoop.parts, reach, border + r + innerLoop.sag);
+                core = partsClip(core, c, innerLoop.parts, reach, innerD + r + innerLoop.sag);
         }
         if (size(core) < 3)
             return [];
@@ -1405,17 +1393,21 @@ function polyDist(A is array, B is array) returns number
 }
 
 
-// ---------------------------------------------------------------- round holes
+// ---------------------------------------------------------------- exact bands
 //
-// A round hole already in the face -- a bolt, a bearing -- gets a round ring
-// of material instead of a straight cut. Every hole next to it is bitten by a
-// disc, so the edge facing the circle is an arc about the same centre. In core
-// terms (the hole shrunk by r) that is the core minus the disc of radius
-// rho = Rc + ring + r. Grown back by r it is exactly the rounded hole kept
-// `ring` clear of the circle, the disc's edge becoming an arc of radius
-// Rc + ring: the same opening argument that makes the corner rounding exact.
-// The circle is taken from the edge itself, so the ring is exact too, with no
-// chord allowance.
+// With bands on, the material kept round the face's edges is an exact offset
+// of them: everything within the border of the outline, and within the band
+// width of every hole already in the face -- round, slotted, curved or square.
+// Its edge is lines parallel to straight edges, arcs concentric with round
+// ones, and arcs round every inside corner. A hole is its cell's core with
+// that taken out, so where a hole meets the band it follows it exactly, and
+// the ribs between holes run on into the band as they meet it.
+//
+// In core terms (the hole shrunk by r): E = everything inside the face at
+// least D = clearance + r from every edge; a core's holes are core n E, grown
+// by r. core n E is worked out cell by cell as an arrangement: every offset
+// curve near the core and every core edge, split where they cross, keeping the
+// pieces that lie on the boundary of core n E, joined end to end into loops.
 
 function pointInConvex(poly is array, p is Vector) returns boolean
 {
@@ -1434,188 +1426,859 @@ function polyPointDist(poly is array, p is Vector) returns number
     return pointInConvex(poly, p) ? 0 : norm(p - nearestOnLoop(poly, p));
 }
 
-// A convex counter-clockwise core minus the disc (C, rho), when that is one
-// shape the feature can draw: pts runs E ... X along the core, and the arc
-// from X back to E, clockwise about C, closes it. Otherwise kind is "none"
-// (the disc misses), "gone" (it covers the core), "split" or "cut".
-// "split": the disc's centre inside the core would leave the circle on an
-// island, and a disc through the middle would split the core in two -- so the
-// core is split by a rib through the circle first. "cut": a sliver of a bite,
-// or of what is left, not worth its tiny sketch entities -- cut it straight
-// instead, which costs next to nothing.
-function circleBite(core is array, C is Vector, rho is number) returns map
+function rot90(u is Vector) returns Vector
 {
-    if (polyPointDist(core, C) >= rho)
-        return { "kind" : "none" };
-    var far = 0;
-    for (var q in core)
-        far = max(far, norm(q - C));
-    if (far <= rho)
-        return { "kind" : "gone" };
-    if (pointInConvex(core, C))
-        return { "kind" : "split" };
+    return vector(-u[1], u[0]);
+}
+
+// Angle turned going from direction u0 to u1 in direction d (1 counter-
+// clockwise, -1 clockwise), in [0, 2 pi).
+function angDir(u0 is Vector, u1 is Vector, d is number) returns number
+{
+    const a = atan2(cross2(u0, u1), dot(u0, u1)) / radian;
+    if (d > 0)
+        return a >= 0 ? a : a + 2 * PI;
+    return a <= 0 ? -a : 2 * PI - a;
+}
+
+// A piece is a line { kind L, a, b } or an arc { kind A, c, rho, a, b, dir,
+// sweep } from a to b about c: counter-clockwise for dir 1, clockwise for -1,
+// through sweep radians (up to 2 pi, a whole circle).
+
+function linePiece(a is Vector, b is Vector) returns map
+{
+    return { "kind" : "L", "a" : a, "b" : b };
+}
+
+function arcPiece(c is Vector, rho is number, a is Vector, b is Vector, d is number, sweep is number) returns map
+{
+    return { "kind" : "A", "c" : c, "rho" : rho, "a" : a, "b" : b, "dir" : d, "sweep" : sweep };
+}
+
+function pieceAt(p is map, t is number) returns Vector
+{
+    if (p.kind == "L")
+        return p.a + (p.b - p.a) * t;
+    const u = p.a - p.c;
+    const th = p.dir * p.sweep * t;
+    const ct = cos(th * radian);
+    const st = sin(th * radian);
+    return p.c + vector(u[0] * ct - u[1] * st, u[0] * st + u[1] * ct);
+}
+
+function pieceLen(p is map) returns number
+{
+    return p.kind == "L" ? norm(p.b - p.a) : p.rho * p.sweep;
+}
+
+// Where X, on p's circle, falls along arc p, as a fraction -- or undefined.
+function arcParam(p is map, X is Vector)
+{
+    const phi = angDir(normalize(p.a - p.c), normalize(X - p.c), p.dir);
+    const tol = TAU / max(p.rho, TAU);
+    if (phi <= p.sweep + tol)
+        return min(phi, p.sweep) / p.sweep;
+    if (phi >= 2 * PI - tol)
+        return 0;
+    return undefined;
+}
+
+function tangentAt(p is map, X is Vector) returns Vector
+{
+    if (p.kind == "L")
+        return normalize(p.b - p.a);
+    return rot90(normalize(X - p.c)) * p.dir;
+}
+
+// The normal to the right of the direction of travel: outward, on a loop
+// that keeps its inside on the left.
+function normalAt(p is map, X is Vector) returns Vector
+{
+    if (p.kind == "L")
+    {
+        const t = normalize(p.b - p.a);
+        return vector(t[1], -t[0]);
+    }
+    return normalize(X - p.c) * p.dir;
+}
+
+// [x0, y0, x1, y1] round a piece.
+function pieceBox(p is map) returns array
+{
+    var pts = [p.a, p.b];
+    if (p.kind == "A")
+        for (var u in [vector(1, 0), vector(0, 1), vector(-1, 0), vector(0, -1)])
+            if (angDir(normalize(p.a - p.c), u, p.dir) <= p.sweep)
+                pts = append(pts, p.c + u * p.rho);
+    var bb = [inf, inf, -inf, -inf];
+    for (var q in pts)
+        bb = [min(bb[0], q[0]), min(bb[1], q[1]), max(bb[2], q[0]), max(bb[3], q[1])];
+    return bb;
+}
+
+function pieceDist(p is map, x is Vector) returns number
+{
+    if (p.kind == "L")
+        return segDist(x, p.a, p.b);
+    const v = x - p.c;
+    const len = norm(v);
+    if (len > 1e-12 && angDir(normalize(p.a - p.c), v * (1 / len), p.dir) <= p.sweep)
+        return abs(len - p.rho);
+    return min(norm(x - p.a), norm(x - p.b));
+}
+
+function subPiece(p is map, t0 is number, t1 is number, X0 is Vector, X1 is Vector) returns map
+{
+    if (p.kind == "L")
+        return linePiece(X0, X1);
+    return arcPiece(p.c, p.rho, X0, X1, p.dir, p.sweep * (t1 - t0));
+}
+
+function clamp01(t is number) returns number
+{
+    return min(1, max(0, t));
+}
+
+// Where two pieces meet: [{ t on p, u on q, x }], ends included. Two pieces
+// on one line or one circle meet where they overlap, at its two ends.
+
+function isectLL(p is map, q is map) returns array
+{
+    const a = p.a;
+    const d1 = p.b - p.a;
+    const c = q.a;
+    const d2 = q.b - q.a;
+    const l1 = norm(d1);
+    const l2 = norm(d2);
+    if (l1 <= TAU || l2 <= TAU)
+        return [];
+    const den = cross2(d1, d2);
+    if (abs(den) <= 1e-12 * l1 * l2)
+    {
+        if (abs(cross2(d1, c - a)) / l1 > TAU)
+            return [];
+        var out = [];
+        for (var e in [{ "x" : q.a, "u" : 0 }, { "x" : q.b, "u" : 1 }])
+        {
+            const t = dot(e.x - a, d1) / (l1 * l1);
+            if (t >= -PEPS && t <= 1 + PEPS)
+                out = append(out, { "t" : clamp01(t), "u" : e.u, "x" : e.x });
+        }
+        for (var e in [{ "x" : p.a, "t" : 0 }, { "x" : p.b, "t" : 1 }])
+        {
+            const u = dot(e.x - c, d2) / (l2 * l2);
+            if (u >= -PEPS && u <= 1 + PEPS)
+                out = append(out, { "t" : e.t, "u" : clamp01(u), "x" : e.x });
+        }
+        return out;
+    }
+    const t = cross2(c - a, d2) / den;
+    const u = cross2(c - a, d1) / den;
+    if (t >= -PEPS && t <= 1 + PEPS && u >= -PEPS && u <= 1 + PEPS)
+    {
+        const tc = clamp01(t);
+        return [{ "t" : tc, "u" : clamp01(u), "x" : a + d1 * tc }];
+    }
+    return [];
+}
+
+// A line and an arc. One that comes within TAU of just touching the circle
+// is taken not to meet it at all: a touch splits nothing, and a crossing that
+// shallow is lost in rounding -- worked out either way, it leaves slivers of
+// piece a fraction of a micrometre long, on one side of the tangent point or
+// the other.
+function isectLA(p is map, q is map) returns array
+{
+    const a = p.a;
+    const d = p.b - p.a;
+    const dd = dot(d, d);
+    if (dd <= TAU * TAU)
+        return [];
+    const len = sqrt(dd);
+    const f = q.c - a;
+    const h = abs(cross2(d, f)) / len;
+    if (h >= q.rho - TAU)
+        return [];
+    const t0 = dot(f, d) / dd;
+    const w = sqrt(q.rho * q.rho - h * h) / len;
+    var out = [];
+    for (var root in [t0 - w, t0 + w])
+    {
+        if (root >= -PEPS && root <= 1 + PEPS)
+        {
+            const t = clamp01(root);
+            const X = a + d * t;
+            const u = arcParam(q, X);
+            if (u != undefined)
+                out = append(out, { "t" : t, "u" : u, "x" : X });
+        }
+    }
+    return out;
+}
+
+function isectAA(p is map, q is map) returns array
+{
+    const v = q.c - p.c;
+    const d = norm(v);
+    const r1 = p.rho;
+    const r2 = q.rho;
+    var out = [];
+    if (d <= TAU)
+    {
+        if (abs(r1 - r2) > TAU)
+            return [];
+        for (var e in [{ "x" : q.a, "u" : 0 }, { "x" : q.b, "u" : 1 }])
+        {
+            const t = arcParam(p, e.x);
+            if (t != undefined)
+                out = append(out, { "t" : t, "u" : e.u, "x" : e.x });
+        }
+        for (var e in [{ "x" : p.a, "t" : 0 }, { "x" : p.b, "t" : 1 }])
+        {
+            const u = arcParam(q, e.x);
+            if (u != undefined)
+                out = append(out, { "t" : e.t, "u" : u, "x" : e.x });
+        }
+        return out;
+    }
+    if (d >= r1 + r2 - TAU || d <= abs(r1 - r2) + TAU)
+        return [];                      // apart, one inside the other, or touching: as for a line
+    const al = (r1 * r1 - r2 * r2 + d * d) / (2 * d);
+    const h = sqrt(max(0, r1 * r1 - al * al));
+    const P = p.c + v * (al / d);
+    const w = rot90(v) * (1 / d);
+    const pts = [P + w * h, P - w * h];
+    for (var X in pts)
+    {
+        const t = arcParam(p, X);
+        const u = arcParam(q, X);
+        if (t != undefined && u != undefined)
+            out = append(out, { "t" : t, "u" : u, "x" : X });
+    }
+    return out;
+}
+
+function isect(p is map, q is map) returns array
+{
+    if (p.kind == "L")
+        return q.kind == "L" ? isectLL(p, q) : isectLA(p, q);
+    if (q.kind == "L")
+    {
+        var out = [];
+        for (var e in isectLA(q, p))
+            out = append(out, { "t" : e.u, "u" : e.t, "x" : e.x });
+        return out;
+    }
+    return isectAA(p, q);
+}
+
+
+// ---------------------------------------------------------------- the face's edges, offset
+
+// The exact pieces of one sampled edge: one arc for an edge on a circle, one
+// line for a straight edge, a line per chord for anything else.
+function edgePieces(poly is map) returns array
+{
+    const pts = poly.pts;
+    if (poly.circle != undefined)
+    {
+        const c = poly.circle.c;
+        const a = pts[0];
+        const b = pts[size(pts) - 1];
+        const d = cross2(pts[0] - c, pts[1] - c) > 0 ? 1 : -1;
+        var sw = angDir(normalize(a - c), normalize(b - c), d);
+        if (sw <= 1e-9)
+            sw = 2 * PI;
+        return [arcPiece(c, poly.circle.r, a, b, d, sw)];
+    }
+    var out = [];
+    for (var k = 0; k < size(pts) - 1; k += 1)
+        out = append(out, linePiece(pts[k], pts[k + 1]));
+    return out;
+}
+
+// Each loop of the face: its pieces (face on their left), and its clearance
+// -- outerD for the outline, innerD for a hole, plus the chord allowance
+// where the loop has a sampled curve.
+function faceLoops(polys is array, outerD is number, innerD is number) returns array
+{
+    var out = [];
+    for (var lp in chainLoops(polys))
+    {
+        var pieces = [];
+        var csag = 0;
+        for (var k in lp.idx)
+        {
+            pieces = concatenateArrays([pieces, edgePieces(polys[k])]);
+            if (polys[k].circle == undefined && size(polys[k].pts) > 2)
+                csag = max(csag, polys[k].sag);
+        }
+        out = append(out, { "pieces" : pieces, "D" : (signedArea(lp.pts) > 0 ? outerD : innerD) + csag });
+    }
+    return out;
+}
+
+// The raw offset of one loop: each piece moved its clearance (+ extra) to its
+// left, and an arc of that radius round each inside corner -- which includes
+// every joint where a sampled curve bends away from the face, so the offset
+// of a sampled curve is exact for its chords, a chain of lines and short arcs
+// that meet smoothly. At an outside corner neighbours cross; the arrangement
+// trims them.
+function offsetLoop(lp is map, extra is number) returns array
+{
+    const D = lp.D + extra;
+    const P = lp.pieces;
+    const n = size(P);
+    var out = [];
+    for (var p in P)
+    {
+        if (p.kind == "L")
+        {
+            const nv = rot90(normalize(p.b - p.a));
+            out = append(out, linePiece(p.a + nv * D, p.b + nv * D));
+        }
+        else
+        {
+            const rho = p.rho - p.dir * D;
+            if (rho <= 1e-6)
+                continue;           // a convex arc tighter than D: its neighbours meet instead
+            const na = normalize(p.a - p.c) * -p.dir;
+            const nb = normalize(p.b - p.c) * -p.dir;
+            out = append(out, arcPiece(p.c, rho, p.a + na * D, p.b + nb * D, p.dir, p.sweep));
+        }
+    }
+    for (var i = 0; i < n; i += 1)
+    {
+        const p = P[i];
+        const q = P[(i + 1) % n];
+        const tIn = tangentAt(p, p.b);
+        const tOut = tangentAt(q, q.a);
+        const s = cross2(tIn, tOut);
+        if (s < -SMOOTH || (abs(s) <= SMOOTH && dot(tIn, tOut) < 0))
+        {
+            const v = p.b;
+            const nIn = rot90(tIn);
+            const nOut = rot90(tOut);
+            out = append(out, arcPiece(v, D, v + nIn * D, v + nOut * D, -1, angDir(nIn, nOut, -1)));
+        }
+    }
+    for (var i = 0; i < size(out); i += 1)
+        out[i].bbox = pieceBox(out[i]);
+    return out;
+}
+
+// Each box's index, filed under every grid square the box touches. Built in
+// one place, so the map is never handed to a function to be added to -- in
+// FeatureScript that could copy all of it each time.
+function gridOf(boxes is array, gs is number) returns map
+{
+    var grid = {};
+    for (var idx = 0; idx < size(boxes); idx += 1)
+    {
+        const bb = boxes[idx];
+        for (var gx = floor(bb[0] / gs); gx <= floor(bb[2] / gs); gx += 1)
+            for (var gy = floor(bb[1] / gs); gy <= floor(bb[3] / gs); gy += 1)
+            {
+                const key = gridKey(gx, gy);
+                grid[key] = append(grid[key] == undefined ? [] : grid[key], idx);
+            }
+    }
+    return grid;
+}
+
+function gridFind(grid is map, gs is number, bb is array) returns array
+{
+    var seen = {};
+    var found = [];
+    for (var gx = floor(bb[0] / gs); gx <= floor(bb[2] / gs); gx += 1)
+        for (var gy = floor(bb[1] / gs); gy <= floor(bb[3] / gs); gy += 1)
+        {
+            const bucket = grid[gridKey(gx, gy)];
+            if (bucket == undefined)
+                continue;
+            for (var i in bucket)
+            {
+                if (seen[i] == true)
+                    continue;
+                seen[i] = true;
+                found = append(found, i);
+            }
+        }
+    return sort(found, function(a, b) { return a - b; });
+}
+
+// Everything about one face that the bands need: its edges as exact pieces
+// with their clearances, and the raw offsets at D and at D + k (for the
+// smallest-hole test), each filed in a grid.
+function bandContext(polys is array, region is map, outerD is number, innerD is number, k is number) returns map
+{
+    const loops = faceLoops(polys, outerD, innerD);
+    var feats = [];
+    var fboxes = [];
+    for (var lp in loops)
+        for (var p in lp.pieces)
+        {
+            var f = p;
+            f.D = lp.D;
+            const b = pieceBox(p);
+            const g = lp.D + k;
+            f.bbox = [b[0] - g, b[1] - g, b[2] + g, b[3] + g];
+            feats = append(feats, f);
+            fboxes = append(fboxes, f.bbox);
+        }
+    var raws = [];
+    var rgrids = [];
+    for (var e in [0, k])
+    {
+        var rs = [];
+        for (var lp in loops)
+            rs = concatenateArrays([rs, offsetLoop(lp, e)]);
+        var rboxes = [];
+        for (var p in rs)
+            rboxes = append(rboxes, p.bbox);
+        raws = append(raws, rs);
+        rgrids = append(rgrids, gridOf(rboxes, region.gs));
+    }
+    return { "region" : region, "feats" : feats, "fgrid" : gridOf(fboxes, region.gs), "raws" : raws,
+             "rgrids" : rgrids, "k" : k };
+}
+
+function inBox(b is array, x is Vector) returns boolean
+{
+    return b[0] <= x[0] && x[0] <= b[2] && b[1] <= x[1] && x[1] <= b[3];
+}
+
+function boxesMeet(a is array, b is array) returns boolean
+{
+    return a[0] <= b[2] && b[0] <= a[2] && a[1] <= b[3] && b[1] <= a[3];
+}
+
+// Is x in E: inside the face, and at least its clearance from every edge?
+function bandValid(ctx is map, x is Vector, extra is number) returns boolean
+{
+    const gs = ctx.region.gs;
+    const bucket = ctx.fgrid[gridKey(floor(x[0] / gs), floor(x[1] / gs))];
+    if (bucket != undefined)
+    {
+        for (var i in bucket)
+        {
+            const f = ctx.feats[i];
+            if (inBox(f.bbox, x) && pieceDist(f, x) < f.D + extra - TAU)
+                return false;
+        }
+    }
+    return insideRegion(ctx.region, x);
+}
+
+function strictlyInside(core is array, x is Vector) returns boolean
+{
     const n = size(core);
-    var xs = [];
     for (var k = 0; k < n; k += 1)
     {
-        const a = core[k];
-        const d = core[(k + 1) % n] - a;
-        const f = a - C;
-        const qa = dot(d, d);
-        const qb = 2 * dot(f, d);
-        const qc = dot(f, f) - rho * rho;
-        const disc = qb * qb - 4 * qa * qc;
-        if (qa <= 0 || disc <= 0)
-            continue;
-        const sq = sqrt(disc);
-        const t0 = (-qb - sq) / (2 * qa);
-        const t1 = (-qb + sq) / (2 * qa);
-        if (t0 >= 0 && t0 < 1)
-            xs = append(xs, { "k" : k, "dir" : 1, "p" : a + d * t0 });
-        if (t1 >= 0 && t1 < 1)
-            xs = append(xs, { "k" : k, "dir" : -1, "p" : a + d * t1 });
+        const e = core[(k + 1) % n] - core[k];
+        if (cross2(e, x - core[k]) <= TAU * norm(e))
+            return false;
     }
-    if (size(xs) != 2 || xs[0].dir == xs[1].dir)
-        return { "kind" : "split" };
-    const xIn = xs[0].dir == 1 ? xs[0] : xs[1];
-    const xOut = xs[0].dir == 1 ? xs[1] : xs[0];
-    var m = (xIn.k - xOut.k + n) % n;
-    if (m == 0)
-        m = n;
-    var pts = [xOut.p];
-    for (var j = 1; j <= m; j += 1)
-        pts = append(pts, core[(xOut.k + j) % n]);
-    pts = append(pts, xIn.p);
-    for (var k = 0; k < size(pts) - 1; k += 1)
-        if (norm(pts[k + 1] - pts[k]) < TINY_EDGE)
-            return { "kind" : "cut" };
-    const uX = normalize(xIn.p - C);
-    const uE = normalize(xOut.p - C);
-    if (-cross2(uX, uE) < sin(MIN_SWEEP * radian))
-        return { "kind" : "cut" };
-    if (!pointInConvex(core, C + normalize(uX + uE) * rho))
-        return { "kind" : "cut" };
-    const tIn = normalize(xIn.p - pts[size(pts) - 2]);
-    const tOut = normalize(pts[1] - xOut.p);
-    if (cross2(vector(tIn[1], -tIn[0]), uX * -1) < MIN_TURN || cross2(uE * -1, vector(tOut[1], -tOut[0])) < MIN_TURN)
-        return { "kind" : "cut" };
-    return { "kind" : "bite", "C" : C, "rho" : rho, "pts" : pts,
-            "sweep" : acos(clamp(dot(uX, uE), -1, 1)) / radian };
+    return true;
 }
 
-// A straight cut keeping a core clear of the disc (C, rho): of a few
-// half-planes that miss the disc, the one keeping the most core. The fallback
-// when a bite will not do, and for every disc but the deepest.
-function discCut(core is array, C is Vector, rho is number) returns array
+function loopArea(lp is array) returns number
 {
-    var cands = [];
-    const g = centroid2(core) - C;
-    if (norm(g) > 1e-9)
-        cands = append(cands, normalize(g));
-    if (!pointInConvex(core, C))
+    var s = 0;
+    for (var p in lp)
     {
-        const q = nearestOnLoop(core, C) - C;
-        if (norm(q) > 1e-9)
-            cands = append(cands, normalize(q));
-    }
-    for (var k = 0; k < 16; k += 1)
-        cands = append(cands, vector(cos(22.5 * k * degree), sin(22.5 * k * degree)));
-    var best = [];
-    var bestArea = 0;
-    for (var u in cands)
-    {
-        const kept = clipHalf(core, C + u * rho, u * -1);
-        const area = size(kept) >= 3 ? abs(signedArea(kept)) : 0;
-        if (area > bestArea)
+        s += cross2(p.a, p.b) / 2;
+        if (p.kind == "A")
         {
-            best = kept;
-            bestArea = area;
+            const sg = p.dir * p.sweep;
+            s += p.rho * p.rho / 2 * (sg - sin(sg * radian));
         }
     }
-    return size(best) >= 3 ? tidy(ccw(best)) : [];
+    return s;
 }
 
-// Tidies a core, keeps it out of every disc { c, rho } in discs -- one bite
-// from the disc reaching deepest into it, a straight cut for any other -- and
-// applies the smallest-hole test. Returns a list of holes { core, bite }:
-// none, one, or two when the core had to be split by a rib through a circle,
-// splitD (rib / 2 + r) either side of it.
-function finishHole(coreIn is array, discs is array, r is number, keepR is number, splitD is number, depth is number) returns array
+// core n E: status "plain" when all of the core is in E, "empty" when none
+// is, "fail" when it cannot be worked out cleanly, or "ok" with comps,
+// counter-clockwise loops of pieces, and holes, clockwise loops of anything
+// inside them.
+function bandClip(core is array, ctx is map, extra is number) returns map
 {
-    var core = tidy(ccw(coreIn));
-    if (size(core) < 3)
-        return [];
-    var bite = undefined;
-    var near = [];
-    const cc = centroid2(core);
+    const n = size(core);
+    var bb = [inf, inf, -inf, -inf];
+    for (var q in core)
+        bb = [min(bb[0], q[0]), min(bb[1], q[1]), max(bb[2], q[0]), max(bb[3], q[1])];
+    bb = [bb[0] - TAU, bb[1] - TAU, bb[2] + TAU, bb[3] + TAU];
+    const lv = extra == 0 ? 0 : 1;
+    const raws = ctx.raws[lv];
+    var allp = [];
+    for (var k = 0; k < n; k += 1)
+        allp = append(allp, linePiece(core[k], core[(k + 1) % n]));
+    for (var i in gridFind(ctx.rgrids[lv], ctx.region.gs, bb))
+        if (boxesMeet(raws[i].bbox, bb))
+            allp = append(allp, raws[i]);
+    const m = size(allp);
+    if (m == n)
+        return { "status" : bandValid(ctx, centroid2(core), extra) ? "plain" : "empty" };
+    var ev = [];
+    for (var i = 0; i < m; i += 1)
+        ev = append(ev, []);
+    for (var i = 0; i < m; i += 1)
+        for (var j = max(i + 1, n); j < m; j += 1)
+            for (var e in isect(allp[i], allp[j]))
+            {
+                ev[i] = append(ev[i], { "t" : e.t, "x" : e.x });
+                ev[j] = append(ev[j], { "t" : e.u, "x" : e.x });
+            }
+    var kept = [];
+    for (var i = 0; i < m; i += 1)
+    {
+        const p = allp[i];
+        const evs = sort(concatenateArrays([[{ "t" : 0, "x" : p.a }], ev[i], [{ "t" : 1, "x" : p.b }]]),
+                         function(a, b) { return a.t - b.t; });
+        const len = pieceLen(p);
+        for (var k = 0; k < size(evs) - 1; k += 1)
+        {
+            const t0 = evs[k].t;
+            const t1 = evs[k + 1].t;
+            if ((t1 - t0) * len <= TAU)
+                continue;
+            const mid = pieceAt(p, (t0 + t1) / 2);
+            if (i >= n && !strictlyInside(core, mid))
+                continue;
+            if (bandValid(ctx, mid, extra))
+                kept = append(kept, subPiece(p, t0, t1, evs[k].x, evs[k + 1].x));
+        }
+    }
+    const mk = size(kept);
+    if (mk == 0)
+        return { "status" : "empty" };
+    // Each piece must lead on to exactly one other, and each be led to once.
+    var nxt = [];
+    var hits = [];
+    for (var i = 0; i < mk; i += 1)
+        hits = append(hits, 0);
+    for (var i = 0; i < mk; i += 1)
+    {
+        var cand = -1;
+        var count = 0;
+        for (var j = 0; j < mk; j += 1)
+        {
+            if (norm(kept[j].a - kept[i].b) <= LINK)
+            {
+                cand = j;
+                count += 1;
+            }
+        }
+        if (count != 1)
+            return { "status" : "fail" };
+        nxt = append(nxt, cand);
+        hits[cand] += 1;
+    }
+    for (var h in hits)
+        if (h != 1)
+            return { "status" : "fail" };
+    var seen = [];
+    for (var i = 0; i < mk; i += 1)
+        seen = append(seen, false);
+    var comps = [];
+    var holes = [];
+    for (var i = 0; i < mk; i += 1)
+    {
+        if (seen[i])
+            continue;
+        var lp = [];
+        var j = i;
+        while (!seen[j])
+        {
+            seen[j] = true;
+            lp = append(lp, kept[j]);
+            j = nxt[j];
+        }
+        if (j != i)
+            return { "status" : "fail" };
+        const nl = size(lp);
+        for (var k = 0; k < nl; k += 1)         // one point at each junction
+            lp[(k + 1) % nl].a = lp[k].b;
+        if (loopArea(lp) > 0)
+            comps = append(comps, lp);
+        else
+            holes = append(holes, lp);
+    }
+    return { "status" : "ok", "comps" : comps, "holes" : holes };
+}
+
+
+// ---------------------------------------------------------------- loops
+
+function loopPerimeter(lp is array) returns number
+{
+    var s = 0;
+    for (var p in lp)
+        s += pieceLen(p);
+    return s;
+}
+
+// Arcs over 0.9 of half a turn are drawn as two, so no arc's ends meet.
+function splitBigArcs(lp is array) returns array
+{
+    var out = [];
+    for (var p in lp)
+    {
+        if (p.kind == "A" && p.sweep > 0.9 * PI)
+        {
+            const m = pieceAt(p, 0.5);
+            out = append(out, arcPiece(p.c, p.rho, p.a, m, p.dir, p.sweep / 2));
+            out = append(out, arcPiece(p.c, p.rho, m, p.b, p.dir, p.sweep / 2));
+        }
+        else
+            out = append(out, p);
+    }
+    return out;
+}
+
+function smoothJoin(n1 is Vector, n2 is Vector) returns boolean
+{
+    return abs(cross2(n1, n2)) <= SMOOTH && dot(n1, n2) > 0;
+}
+
+// Every piece long enough to draw; every corner turning enough to round, or
+// not at all where two pieces meet tangentially.
+function loopOk(lp is array) returns boolean
+{
+    const n = size(lp);
+    for (var k = 0; k < n; k += 1)
+    {
+        const p = lp[k];
+        if (pieceLen(p) < TINY_EDGE)
+            return false;
+        const q = lp[(k + 1) % n];
+        const n1 = normalAt(p, p.b);
+        const n2 = normalAt(q, q.a);
+        if (smoothJoin(n1, n2))
+            continue;
+        if (cross2(n1, n2) < ((p.kind == "L" && q.kind == "L") ? TINY_TURN : MIN_TURN))
+            return false;
+    }
+    return true;
+}
+
+// Is x in the circular segment between arc p (under half a turn) and its chord?
+function arcSegmentHolds(p is map, x is Vector) returns boolean
+{
+    if (norm(x - p.c) >= p.rho)
+        return false;
+    const side = cross2(p.b - p.a, x - p.a);
+    return p.dir > 0 ? side < 0 : side > 0;
+}
+
+function winding(lp is array, x is Vector) returns number
+{
+    var w = 0;
+    for (var p in lp)
+    {
+        const u = p.a - x;
+        const v = p.b - x;
+        w += atan2(cross2(u, v), dot(u, v)) / radian;
+        if (p.kind == "A" && arcSegmentHolds(p, x))
+            w += 2 * PI * p.dir;
+    }
+    return round(w / (2 * PI));
+}
+
+// How close two pieces come: their ends against each other, and for an arc
+// its point that faces the other piece square on.
+function piecePieceDist(p is map, q is map) returns number
+{
+    var best = min(min(pieceDist(q, p.a), pieceDist(q, p.b)), min(pieceDist(p, q.a), pieceDist(p, q.b)));
+    for (var st in [[p, q], [q, p]])
+    {
+        const s = st[0];
+        const t = st[1];
+        if (s.kind != "A")
+            continue;
+        var dirs = [];
+        if (t.kind == "L")
+        {
+            const nv = rot90(normalize(t.b - t.a));
+            dirs = [nv, nv * -1];
+        }
+        else
+        {
+            const w = t.c - s.c;
+            if (norm(w) > TAU)
+                dirs = [normalize(w), normalize(w) * -1];
+        }
+        for (var u in dirs)
+        {
+            const Y = s.c + u * s.rho;
+            if (arcParam(s, Y) != undefined)
+                best = min(best, pieceDist(t, Y));
+        }
+    }
+    return best;
+}
+
+function loopPoints(lp is array) returns array
+{
+    var out = [];
+    for (var p in lp)
+    {
+        const k = p.kind == "L" ? 8 : max(8, ceil(p.sweep * 16));
+        for (var j = 0; j < k; j += 1)
+            out = append(out, pieceAt(p, j / k));
+    }
+    return out;
+}
+
+
+// ---------------------------------------------------------------- holes from bands
+
+// The fallback, for the rare core the arrangement cannot settle cleanly: the
+// old straight cuts, convex and always drawable, kept the band width off
+// every hole -- conservative, so never less material.
+function straightCore(core is array, ctx is map, r is number, border is number, ring is number, keepR is number) returns array
+{
+    const c = centroid2(core);
     var cr = 0;
     for (var q in core)
-        cr = max(cr, norm(q - cc));
-    for (var k = 0; k < size(discs); k += 1)
-    {
-        if (norm(discs[k].c - cc) - cr >= discs[k].rho)      // quick reject: the core lies within cr of cc
-            continue;
-        const dk = polyPointDist(core, discs[k].c);
-        if (dk < discs[k].rho)
-            near = append(near, { "depth" : dk - discs[k].rho, "k" : k });
-    }
-    near = sort(near, function(a, b) { return a.depth != b.depth ? a.depth - b.depth : a.k - b.k; });
-    for (var j = 1; j < size(near); j += 1)
-    {
-        core = discCut(core, discs[near[j].k].c, discs[near[j].k].rho);
-        if (size(core) < 3)
-            return [];
-    }
-    if (size(near) > 0)
-    {
-        const deepest = discs[near[0].k];
-        const b = circleBite(core, deepest.c, deepest.rho);
-        if (b.kind == "gone")
-            return [];
-        if (b.kind == "split" && depth == 0)
-            return splitHole(core, deepest.c, discs, r, keepR, splitD);
-        if (b.kind == "cut" || b.kind == "split")
-        {
-            core = discCut(core, deepest.c, deepest.rho);
-            if (size(core) < 3)
-                return [];
-        }
-        else if (b.kind == "bite")
-            bite = b;
-    }
-    if (keepR > r)
-    {
-        const inner = insetConvex(core, keepR - r);
-        if (size(inner) < 3)
-            return [];
-        // Bitten: a circle of keepR fits iff some corner of the core shrunk
-        // by keepR - r stays keepR - r clear of the disc.
-        if (bite != undefined)
-        {
-            var far = 0;
-            for (var q in inner)
-                far = max(far, norm(q - bite.C));
-            if (far < bite.rho + keepR - r)
-                return [];
-        }
-    }
-    return [{ "core" : core, "bite" : bite }];
+        cr = max(cr, norm(q - c));
+    const reach = cr + max(border, ring) + r + SAG + 1e-6;
+    var k = regionClip(core, c, ctx.region, reach, border, r, ring);
+    k = size(k) > 0 ? tidy(ccw(k)) : [];
+    if (size(k) == 0 || (keepR > r && size(insetConvex(k, keepR - r)) == 0))
+        return [];
+    return [{ "core" : k, "cut" : true }];
 }
 
-// A core holding a circle's centre, or cut through by its disc: split it by a
-// rib through the centre, so that each side gets a true round bite, and take
-// whichever of six directions keeps the most hole.
-function splitHole(core is array, C is Vector, discs is array, r is number, keepR is number, splitD is number) returns array
+// A core whose bands cannot be drawn cleanly -- a piece too short to sketch,
+// a corner too shallow to round, ends that do not meet -- is tried once more
+// shrunk by NUDGE, which moves every crossing; then it gets the straight
+// cuts. Either way the hole only gets smaller.
+function retryCore(core is array, ctx is map, rib is number, r is number, border is number, ring is number, keepR is number, depth is number, nudged is boolean) returns array
 {
+    if (!nudged)
+    {
+        const k = insetConvex(core, NUDGE);
+        if (size(k) > 0)
+            return bandHoles(k, ctx, rib, r, border, ring, keepR, depth, true);
+    }
+    return straightCore(core, ctx, r, border, ring, keepR);
+}
+
+// The holes one convex core makes against the bands: [{ core }] where
+// nothing touches it, or [{ loop }, ...].
+function bandHoles(coreIn is array, ctx is map, rib is number, r is number, border is number, ring is number, keepR is number, depth is number, nudged is boolean) returns array
+{
+    const core = tidy(ccw(coreIn));
+    if (size(core) == 0)
+        return [];
+    const k = ctx.k;
+    const res = bandClip(core, ctx, 0);
+    if (res.status == "empty")
+        return [];
+    if (res.status == "plain")
+        return (k <= 0 || size(insetConvex(core, k)) > 0) ? [{ "core" : core }] : [];
+    if (res.status == "fail")
+        return retryCore(core, ctx, rib, r, border, ring, keepR, depth, nudged);
+    const d = rib / 2 + r;
+    if (size(res.holes) > 0)
+    {
+        // A hole wrapped round something -- a bolt hole and its band -- would
+        // leave it loose: split the core by a rib through it instead.
+        if (depth >= 2)
+            return straightCore(core, ctx, r, border, ring, keepR);
+        const h0 = res.holes[0];
+        var pts = [];
+        for (var p in h0)
+            pts = append(pts, p.a);
+        const X = (size(pts) > 2 || h0[0].kind != "A") ? centroid2(pts) : h0[0].c;
+        var angles = [];
+        for (var j = 0; j < 6; j += 1)
+            angles = append(angles, (30 * j) * (PI / 180));
+        return bestSplit(core, X, angles, ctx, rib, r, border, ring, keepR, depth);
+    }
+    const comps0 = res.comps;
+    for (var i = 0; i < size(comps0); i += 1)
+        for (var j = i + 1; j < size(comps0); j += 1)
+        {
+            var dmin = inf;
+            for (var p in comps0[i])
+                for (var q in comps0[j])
+                    dmin = min(dmin, piecePieceDist(p, q));
+            if (dmin < 2 * d - TAU)
+            {
+                // Two pieces of one cell closer than a rib: split between them.
+                if (depth >= 2)
+                    return straightCore(core, ctx, r, border, ring, keepR);
+                const pa = loopPoints(comps0[i]);
+                const pb = loopPoints(comps0[j]);
+                var best = inf;
+                var x = pa[0];
+                var y = pb[0];
+                for (var s in pa)
+                    for (var t in pb)
+                        if (norm(s - t) < best)
+                        {
+                            best = norm(s - t);
+                            x = s;
+                            y = t;
+                        }
+                const u = norm(y - x) > TAU ? normalize(y - x) : vector(1, 0);
+                return bestSplit(core, (x + y) * 0.5, [atan2(-u[0], u[1]) / radian], ctx, rib, r, border, ring, keepR, depth);
+            }
+        }
+    var comps = [];
+    for (var c in comps0)
+        comps = append(comps, splitBigArcs(c));
+    for (var c in comps)
+        if (!loopOk(c))
+            return retryCore(core, ctx, rib, r, border, ring, keepR, depth, nudged);
+    var out = [];
+    if (k <= 0)
+    {
+        for (var c in comps)
+            out = append(out, { "loop" : c });
+        return out;
+    }
+    // Smallest hole: a circle of keepR fits in a piece iff the core shrunk by
+    // k = keepR - r, less the bands grown by k, has some of it in that piece.
+    var inner = insetConvex(core, k);
+    inner = size(inner) > 0 ? tidy(ccw(inner)) : [];
+    if (size(inner) == 0)
+        return [];
+    const res2 = bandClip(inner, ctx, k);
+    if (res2.status == "empty" || res2.status == "fail")
+        return [];
+    var probes = [];
+    if (res2.status == "plain")
+        probes = [centroid2(inner)];
+    else
+        for (var lp in res2.comps)
+            probes = append(probes, pieceAt(lp[0], 0.5));
+    for (var c in comps)
+        for (var x in probes)
+            if (winding(c, x) != 0)
+            {
+                out = append(out, { "loop" : c });
+                break;
+            }
+    return out;
+}
+
+// Splits a core in two by a rib through X, at each angle in turn, and keeps
+// the split whose holes cover the most.
+function bestSplit(core is array, X is Vector, angles is array, ctx is map, rib is number, r is number, border is number, ring is number, keepR is number, depth is number) returns array
+{
+    const d = rib / 2 + r;
     var best = [];
     var bestArea = -1;
-    for (var k = 0; k < 6; k += 1)
+    for (var th in angles)
     {
-        const u = vector(cos(30 * k * degree), sin(30 * k * degree));
+        const nv = rot90(vector(cos(th * radian), sin(th * radian)));
         var holes = [];
-        for (var piece in [keepLeft(core, C, u, splitD), keepRight(core, C, u, splitD)])
+        for (var piece in [clipHalf(core, X + nv * d, nv * -1), clipHalf(core, X - nv * d, nv)])
             if (size(piece) >= 3)
-                holes = concatenateArrays([holes, finishHole(piece, discs, r, keepR, splitD, 1)]);
+                holes = concatenateArrays([holes, bandHoles(piece, ctx, rib, r, border, ring, keepR, depth + 1, false)]);
         var area = 0;
         for (var h in holes)
             area += holeArea(h, r);
@@ -1629,167 +2292,186 @@ function splitHole(core is array, C is Vector, discs is array, r is number, keep
 }
 
 
-// ---------------------------------------------------------------- wheels
+// ---------------------------------------------------------------- struts
 //
-// With spokes on, each round hole gets a wheel: its ring, then a ring of
-// sector-shaped holes split by straight spokes, then a hoop one rib wide, and
-// the ordinary cells beyond, bitten round to meet it. A load on the bolt or
-// bearing goes straight out along the spokes into the hoop, and from the hoop
-// into the web all round.
-//
-//   Rc   the circle          ra = Rc + ring      inner edge of the sectors
-//   rb = ra + spoke length   outer edge          rb + rib: cells start here
-//
-// A sector is exact -- two straight sides half a spoke off the spokes, arcs of
-// radius ra and rb, corners rounded by r -- wherever nothing else touches it.
-// One that the border, an inner loop or another wheel reaches into is built as
-// a polygon with its outer arc replaced by the chord (so only ever smaller)
-// and goes through the same clipping and bite as an ordinary cell.
+// With 6-sided cells, a round hole of at least strutMinD gets a ring of
+// Voronoi seeds round it, and the lattice seeds inside that ring go. Cells of
+// seeds in a ring are wedges, so the ribs between them -- ordinary cell
+// edges, one rib wide like every other -- run straight out from the hole's
+// band and join the web where the ring meets the rest of the pattern.
 
-function leftNormal(u is Vector) returns Vector
+// The round holes that get a ring of cells: { c, rc, rs (ring radius),
+// rcl (clear radius), n (seeds), t0 (first angle) } each. Big holes first; a
+// hole whose ring would overlap a bigger one's by much goes without.
+function rosettes(circles is array, ring is number, p is number, minD is number, s is number) returns array
 {
-    return vector(-u[1], u[0]);
-}
-
-function keepLeft(p is array, C is Vector, u is Vector, d is number) returns array
-{
-    const nv = leftNormal(u);
-    return clipHalf(p, C + nv * d, nv * -1);
-}
-
-function keepRight(p is array, C is Vector, u is Vector, d is number) returns array
-{
-    const nv = leftNormal(u);
-    return clipHalf(p, C - nv * d, nv);
-}
-
-// Spokes round one circle: as asked, or about one per cell of circumference,
-// halfway along the spokes.
-function spokeCount(ra is number, depth is number, cell is number, count is number) returns number
-{
-    if (count > 0)
-        return max(3, count);
-    return max(3, round(2 * PI * (ra + depth / 2) / cell));
-}
-
-function spokeDirs(n is number, angle is number) returns array
-{
-    var out = [];
-    for (var k = 0; k < n; k += 1)
+    var cand = [];
+    for (var i = 0; i < size(circles); i += 1)
     {
-        const t = angle + 360 * k / n;
-        out = append(out, vector(cos(t * degree), sin(t * degree)));
+        const rc = circles[i].r;
+        if (2 * rc >= minD)
+        {
+            const rs = rc + ring + 0.45 * p;
+            cand = append(cand, { "i" : i, "c" : circles[i].c, "rc" : rc, "rs" : rs, "rcl" : rs + 0.75 * p });
+        }
+    }
+    cand = sort(cand, function(a, b) { return a.rc != b.rc ? b.rc - a.rc : a.i - b.i; });
+    var out = [];
+    for (var e in cand)
+    {
+        var ok = true;
+        for (var o in out)
+            if (norm(e.c - o.c) < 0.8 * (e.rcl + o.rcl))
+                ok = false;
+        if (ok)
+            out = append(out, { "c" : e.c, "rc" : e.rc, "rs" : e.rs, "rcl" : e.rcl,
+                        "n" : max(5, round(2 * PI * e.rs / p)), "t0" : 360 * hash01(e.i * 31 + 7, s) });
     }
     return out;
 }
 
-// The eroded sector between spoke u0 (on its left) and spoke u1 (on its
-// right), from ri to ro off C, or undefined when it is not a proper
-// four-sided one. Corners: A0, B0 on spoke u0's side, B1, A1 on spoke u1's.
-function sectorShape(C is Vector, u0 is Vector, u1 is Vector, d is number, ri is number, ro is number)
+// Voronoi cells of any seeds, each clipped to the rectangle lo..hi. A cell is
+// right once every seed within twice its radius has cut it, so each starts
+// from the seeds within 2 rc0 and widens the search until its own radius says
+// nothing further can reach it. The rectangle keeps every cell bounded -- a
+// seed on the edge of the pattern has an open cell otherwise -- and the seeds
+// are filed in a grid, so each only looks at those near it.
+function voronoiSeeds(seeds is array, lo is Vector, hi is Vector, rc0 is number) returns array
 {
-    if (ri <= d || ro <= ri)
-        return undefined;
-    const n0 = leftNormal(u0);
-    const n1 = leftNormal(u1);
-    const si = sqrt(ri * ri - d * d);
-    const so = sqrt(ro * ro - d * d);
-    if (so - si < TINY_EDGE)
-        return undefined;
-    const A0 = C + (n0 * d + u0 * si);
-    const B0 = C + (n0 * d + u0 * so);
-    const B1 = C + (n1 * -d + u1 * so);
-    const A1 = C + (n1 * -d + u1 * si);
-    const a0 = normalize(A0 - C);
-    const a1 = normalize(A1 - C);
-    const b0 = normalize(B0 - C);
-    const b1 = normalize(B1 - C);
-    // The inner arc runs clockwise from A1 to A0: it must turn a little at least.
-    if (cross2(a0, a1) < sin(MIN_SWEEP * radian) || norm(A0 - A1) < TINY_EDGE)
-        return undefined;
-    return { "C" : C, "u0" : u0, "u1" : u1, "d" : d, "ri" : ri, "ro" : ro,
-            "A0" : A0, "B0" : B0, "B1" : B1, "A1" : A1,
-            "phiI" : acos(clamp(dot(a0, a1), -1, 1)) / radian,
-            "phiO" : acos(clamp(dot(b0, b1), -1, 1)) / radian };
-}
-
-// Does a circle k larger than the eroded sector's edges fit in it? Its best
-// centre is on the bisector, ri + k .. ro - k out, far enough from the spokes.
-function sectorKeeps(s is map, k is number) returns boolean
-{
-    if (k <= 0)
-        return true;
-    const half = acos(clamp(dot(s.u0, s.u1), -1, 1)) / 2;
-    return max(s.ri + k, (s.d + k) / sin(half)) <= s.ro - k;
-}
-
-// The wedge between two spokes cut off past ro: by the tangent to the outer
-// arc (a polygon holding the true sector, to test it against) and by the
-// chord (one inside it, to build a clipped sector from).
-function sectorPolys(C is Vector, u0 is Vector, u1 is Vector, d is number, ro is number) returns map
-{
-    const h = ro + 1;
-    const big = [C + vector(-h, -h), C + vector(h, -h), C + vector(h, h), C + vector(-h, h)];
-    const wedge = keepRight(keepLeft(big, C, u0, d), C, u1, d);
-    if (size(wedge) < 3 || ro <= d)
-        return { "tangent" : [], "chord" : [] };
-    const b = normalize(u0 + u1);
-    const so = sqrt(ro * ro - d * d);
-    const pl = C + (leftNormal(u0) * d + u0 * so);
-    const pr = C + (leftNormal(u1) * -d + u1 * so);
-    return { "tangent" : clipHalf(wedge, C + b * ro, b), "chord" : clipLeftOf(wedge, pl, pr, 0) };
-}
-
-// The sector holes round circle i.
-function wheelHoles(i is number, wheels is array, zones is array, region is map, rib is number, r is number, border is number, keepR is number) returns array
-{
-    const w = wheels[i];
-    const C = w.c;
-    const dirs = w.dirs;
-    const d = w.d;
-    const ri = w.ra + r;
-    const ro = w.rb - r;
-    const n = size(dirs);
-    var holes = [];
-    for (var k = 0; k < n; k += 1)
+    const g = 2 * rc0;
+    var boxes = [];
+    for (var q in seeds)
+        boxes = append(boxes, [q[0], q[1], q[0], q[1]]);
+    const grid = gridOf(boxes, g);
+    var out = [];
+    for (var i = 0; i < size(seeds); i += 1)
     {
-        const u0 = dirs[k];
-        const u1 = dirs[(k + 1) % n];
-        const polys = sectorPolys(C, u0, u1, d, ro);
-        const tangent = polys.tangent;
-        if (size(tangent) < 3)
-            continue;
-        var others = [];
-        for (var j = 0; j < size(zones); j += 1)
-            if (j != i && polyPointDist(tangent, zones[j].c) < zones[j].rho)
-                others = append(others, zones[j]);
-        const c = centroid2(tangent);
-        var reach = 0;
-        for (var q in tangent)
-            reach = max(reach, norm(q - c));
-        reach = reach + border + r + SAG + 1e-6;
-        const clipped = regionClip(tangent, c, region, reach, border, r, true);
-        const s = sectorShape(C, u0, u1, d, ri, ro);
-        if (s != undefined && size(others) == 0 && size(clipped) >= 3 &&
-            abs(abs(signedArea(clipped)) - abs(signedArea(tangent))) <= TINY_AREA)
+        const sd = seeds[i];
+        var reachN = 2 * rc0;
+        var c = [];
+        while (true)
         {
-            if (sectorKeeps(s, keepR - r))
-                holes = append(holes, { "sector" : s });
-            continue;
+            const h = reachN / 2;
+            const b0 = vector(max(lo[0], sd[0] - h), max(lo[1], sd[1] - h));
+            const b1 = vector(min(hi[0], sd[0] + h), min(hi[1], sd[1] + h));
+            c = [];
+            if (b1[0] > b0[0] && b1[1] > b0[1])
+            {
+                var nbrs = [];
+                for (var j in gridFind(grid, g, [sd[0] - reachN, sd[1] - reachN, sd[0] + reachN, sd[1] + reachN]))
+                    if (j != i && norm(seeds[j] - sd) < reachN)
+                        nbrs = append(nbrs, seeds[j]);
+                c = clipAll([b0, vector(b1[0], b0[1]), b1, vector(b0[0], b1[1])], sd, nbrs);
+            }
+            if (size(c) < 3)
+                break;
+            var far = 0;
+            for (var q in c)
+                far = max(far, norm(q - sd));
+            if (2 * far <= reachN * (1 + 1e-9))
+                break;
+            reachN = 2 * far * (1 + 1e-6);
         }
-        const chord = polys.chord;
-        if (size(chord) < 3)
-            continue;
-        const core = regionClip(chord, centroid2(chord), region, reach, border, r, true);
-        if (size(core) < 3)
-            continue;
-        holes = concatenateArrays([holes, finishHole(core, concatenateArrays([[{ "c" : C, "rho" : ri }], others]), r, keepR, rib / 2 + r, 0)]);
+        var cellPts = [];
+        for (var k = 0; k < size(c); k += 1)
+            if (norm(c[k] - c[(k + size(c) - 1) % size(c)]) > 1e-9)
+                cellPts = append(cellPts, c[k]);
+        if (size(cellPts) >= 3)
+            out = append(out, cellPts);
     }
-    return holes;
+    return out;
 }
 
-// The holes one cell makes: none, one, or two split round a circle.
-function cellHoles(cell is array, region is map, rib is number, r is number, border is number, keepR is number, skipCircles is boolean, discs is array) returns array
+// The seeds voronoiFit uses, its cell reach and its pitch.
+function hexSeedsFit(lo is Vector, hi is Vector, cell is number, irregular is number, s is number) returns map
+{
+    const p0 = cell * PITCH_HEX;
+    const W = hi - lo;
+    const nx = max(1, round(W[0] / p0));
+    const ny = max(1, round(W[1] / (p0 * sqrt(3) / 2)));
+    const px = W[0] / nx;
+    const h = W[1] / ny;
+    const a = clamp(irregular, 0, 1) * JITTER_HEX * min(px, 2 * h / sqrt(3));
+    var S = [];
+    for (var j = 0; j < ny; j += 1)
+    {
+        const xs = hexRowX(j, nx);
+        for (var k = 0; k < size(xs); k += 1)
+        {
+            const d = jitterVec(k, j, a, s);
+            const wall = xs[k] == 0 || xs[k] == nx;
+            S = append(S, lo + vector(xs[k] * px + (wall ? 0 : d[0]), (j + 0.5) * h + d[1]));
+        }
+    }
+    const rc = max((h * h + px * px / 4) / (2 * h), sqrt(px * px + h * h) / 2) + 2 * a + 1e-6;
+    return { "seeds" : S, "rc" : rc, "p" : px };
+}
+
+// 6-sided cells with a ring of cells round each big round hole: { cells,
+// rosettes }, cells undefined where no hole gets one (the ordinary cells are
+// then used). Fitted cells are clipped to lo..hi, as voronoiFit's are;
+// cropped ones to that grown by a cell's reach, which keeps them bounded
+// without touching any hole -- a cut that far out, shrunk by half a rib and
+// the corner radius, still lies outside the face.
+function strutCells(lo is Vector, hi is Vector, cell is number, irregular is number, s is number, circles is array, ring is number, minD is number, fit is boolean) returns map
+{
+    var S = [];
+    var rc = 0;
+    var p = 0;
+    var b0 = lo;
+    var b1 = hi;
+    if (fit)
+    {
+        const hs = hexSeedsFit(lo, hi, cell, irregular, s);
+        S = hs.seeds;
+        rc = hs.rc;
+        p = hs.p;
+    }
+    else
+    {
+        p = cell * PITCH_HEX;
+        const h = p * sqrt(3) / 2;
+        const a = clamp(irregular, 0, 1) * JITTER_HEX * p;
+        const fr = latticeFrame(lo, hi, p, h);
+        const V = lattice(fr.origin, p, fr.nx, fr.ny, true, a, s);
+        rc = p / sqrt(3) + a + 1e-6;
+        for (var i = 0; i <= fr.nx; i += 1)
+            for (var j = 0; j <= fr.ny; j += 1)
+            {
+                const q = V[i][j];
+                if (q[0] > lo[0] - rc && q[0] < hi[0] + rc && q[1] > lo[1] - rc && q[1] < hi[1] + rc)
+                    S = append(S, q);
+            }
+        b0 = lo - vector(rc, rc);
+        b1 = hi + vector(rc, rc);
+    }
+    const ros = rosettes(circles, ring, p, minD, s);
+    if (size(ros) == 0)
+        return { "cells" : undefined, "rosettes" : ros };
+    var seeds = [];
+    for (var q in S)
+    {
+        var keep = true;
+        for (var o in ros)
+            if (norm(q - o.c) < o.rcl)
+                keep = false;
+        if (keep)
+            seeds = append(seeds, q);
+    }
+    for (var o in ros)
+        for (var k = 0; k < o.n; k += 1)
+        {
+            const t = o.t0 + 360 * k / o.n;
+            seeds = append(seeds, o.c + vector(o.rs * cos(t * degree), o.rs * sin(t * degree)));
+        }
+    return { "cells" : voronoiSeeds(seeds, b0, b1, rc), "rosettes" : ros };
+}
+
+
+// ---------------------------------------------------------------- one face
+
+// The holes one cell makes with straight cuts (bands off): none or one.
+function cellHoles(cell is array, region is map, rib is number, r is number, border is number, keepR is number) returns array
 {
     const c = centroid2(cell);
     var core = insetConvex(cell, rib / 2 + r);
@@ -1798,97 +2480,56 @@ function cellHoles(cell is array, region is map, rib is number, r is number, bor
     var cellR = 0;
     for (var q in cell)
         cellR = max(cellR, norm(q - c));
-    core = regionClip(core, c, region, cellR + border + r + SAG + 1e-6, border, r, skipCircles);
+    core = regionClip(core, c, region, cellR + border + r + SAG + 1e-6, border, r, border);
     if (size(core) < 3)
         return [];
-    return finishHole(core, discs, r, keepR, rib / 2 + r, 0);
+    core = tidy(ccw(core));
+    if (size(core) == 0 || (keepR > r && size(insetConvex(core, keepR - r)) == 0))
+        return [];
+    return [{ "core" : core }];
 }
 
-// Every hole on one face: the wheels' sectors, then the cells.
-function planHoles(region is map, settings is map) returns array
+// Every hole on one face. ring: undefined for straight cuts; else exact
+// bands, ring wide round every hole in the face.
+function planHoles(region is map, polys is array, settings is map) returns array
 {
     const r = settings.r;
     const rib = settings.rib;
     const border = settings.border;
     const keepR = settings.keepR;
     const ring = settings.ring;
-    var holes = [];
-    var discs = [];
-    if (ring != undefined)
-    {
-        for (var circ in region.circles)
-            discs = append(discs, { "c" : circ.c, "rho" : circ.r + ring + r });
-        if (settings.spokes)
-        {
-            const w = max(settings.spokeWidth, rib);
-            var wheels = [];
-            for (var circ in region.circles)
-            {
-                const ra = circ.r + ring;
-                const n = spokeCount(ra, settings.spokeLength, settings.cell, settings.spokeCount);
-                wheels = append(wheels, { "c" : circ.c, "rc" : circ.r, "ra" : ra, "rb" : ra + settings.spokeLength,
-                            "d" : w / 2 + r, "dirs" : spokeDirs(n, settings.spokeAngle) });
-            }
-            var zones = [];
-            var order = [];
-            for (var i = 0; i < size(wheels); i += 1)
-            {
-                zones = append(zones, { "c" : wheels[i].c, "rho" : wheels[i].rb + rib + r });
-                order = append(order, { "rc" : wheels[i].rc, "i" : i });
-            }
-            // Wheels only round holes of at least spokeMinD, and only where
-            // they have room. Two that overlap by more than a spoke length
-            // would chop each other up, so: between holes of like size
-            // (neither 1.5 times the other), neither gets one -- a row of
-            // holes just gets rings -- and between a big hole and a small
-            // one, the big one keeps its wheel and the small one sits in it
-            // with its ring.
-            order = sort(order, function(a, b) { return a.rc != b.rc ? b.rc - a.rc : a.i - b.i; });
-            var on = [];
-            for (var i = 0; i < size(wheels); i += 1)
-                on = append(on, false);
-            for (var o in order)
-            {
-                const i = o.i;
-                var ok = 2 * wheels[i].rc >= settings.spokeMinD;
-                for (var j = 0; j < size(wheels); j += 1)
-                {
-                    if (j == i || 2 * wheels[j].rc < settings.spokeMinD || wheels[j].rc * 1.5 <= wheels[i].rc)
-                        continue;
-                    if (norm(wheels[i].c - wheels[j].c) >= zones[i].rho + zones[j].rho - settings.spokeLength)
-                        continue;
-                    if (on[j] || wheels[i].rc * 1.5 > wheels[j].rc)
-                        ok = false;
-                }
-                on[i] = ok;
-            }
-            var keepOut = [];
-            for (var j = 0; j < size(wheels); j += 1)
-                keepOut = append(keepOut, on[j] ? zones[j] : discs[j]);
-            for (var i = 0; i < size(wheels); i += 1)
-            {
-                const hs = on[i] ? wheelHoles(i, wheels, keepOut, region, rib, r, border, keepR) : [];
-                holes = concatenateArrays([holes, hs]);
-                // A wheel with no sector left is no wheel: cells only keep
-                // their ring clear of that circle.
-                if (size(hs) > 0)
-                    discs[i] = zones[i];
-            }
-        }
-    }
-    var cells = [];
+    var lo = region.lo;
+    var hi = region.hi;
     if (settings.fit)
     {
         const ins = border - rib / 2;
-        const lo = region.lo + vector(ins, ins);
-        const hi = region.hi - vector(ins, ins);
-        if (hi[0] > lo[0] && hi[1] > lo[1])
-            cells = fitCells(settings.shape, lo, hi, settings.cell, settings.irregular, settings.seed);
+        lo = region.lo + vector(ins, ins);
+        hi = region.hi - vector(ins, ins);
     }
-    else
-        cells = cropCells(settings.shape, region.lo, region.hi, settings.cell, settings.irregular, settings.seed);
+    var cells = undefined;
+    if (settings.fit && (hi[0] <= lo[0] || hi[1] <= lo[1]))
+        cells = [];
+    else if (ring != undefined && settings.struts && settings.shape == LeopardCellShape.HEX)
+        cells = strutCells(lo, hi, settings.cell, settings.irregular, settings.seed, region.circles, ring,
+                           settings.strutMinD, settings.fit).cells;
+    if (cells == undefined)
+        cells = settings.fit
+            ? fitCells(settings.shape, lo, hi, settings.cell, settings.irregular, settings.seed)
+            : cropCells(settings.shape, lo, hi, settings.cell, settings.irregular, settings.seed);
+    var holes = [];
+    if (ring == undefined)
+    {
+        for (var cell in cells)
+            holes = concatenateArrays([holes, cellHoles(cell, region, rib, r, border, keepR)]);
+        return holes;
+    }
+    const ctx = bandContext(polys, region, border + r, ring + r, max(0, keepR - r));
     for (var cell in cells)
-        holes = concatenateArrays([holes, cellHoles(cell, region, rib, r, border, keepR, ring != undefined, discs)]);
+    {
+        const core = insetConvex(cell, rib / 2 + r);
+        if (size(core) > 0)
+            holes = concatenateArrays([holes, bandHoles(core, ctx, rib, r, border, ring, keepR, 0, false)]);
+    }
     return holes;
 }
 
@@ -1939,97 +2580,55 @@ function coreOutline(core is array, r is number) returns array
     return ents;
 }
 
-// A bitten core grown by r: lines and corner arcs along pts as above, then an
-// arc of radius r about X onto the circle, the concave arc of radius
-// rho - r = Rc + ring about the circle's centre, and an arc about E back onto
-// the first edge.
-function biteOutline(b is map, r is number) returns array
+// A loop of pieces grown by r: each line moved out by r, each arc's radius
+// grown (inside it) or shrunk (outside it) by r about the same centre, and an
+// arc of radius r round every corner -- none where two pieces meet smoothly.
+function loopOutline(lp is array, r is number) returns array
 {
-    const pts = b.pts;
-    const C = b.C;
-    const rho = b.rho;
-    const m = size(pts) - 1;
-    const X = pts[m];
-    const E = pts[0];
-    const uX = normalize(X - C);
-    const uE = normalize(E - C);
-    const mid = normalize(uX + uE);
+    const m = size(lp);
     var ents = [];
     if (r <= 0)
     {
-        for (var k = 0; k < m; k += 1)
-            ents = append(ents, lineEnt(pts[k], pts[k + 1]));
-        return append(ents, arcEnt(X, C + mid * rho, E));
+        for (var p in lp)
+            ents = append(ents, p.kind == "L" ? lineEnt(p.a, p.b) : arcEnt(p.a, pieceAt(p, 0.5), p.b));
+        return ents;
     }
-    var normals = [];
+    var starts = [];
+    var ends = [];
+    for (var p in lp)
+    {
+        starts = append(starts, p.a + normalAt(p, p.a) * r);
+        ends = append(ends, p.b + normalAt(p, p.b) * r);
+    }
     for (var k = 0; k < m; k += 1)
     {
-        const t = normalize(pts[k + 1] - pts[k]);
-        normals = append(normals, vector(t[1], -t[0]));
+        const q = lp[(k + 1) % m];
+        if (smoothJoin(normalAt(lp[k], lp[k].b), normalAt(q, q.a)))
+            starts[(k + 1) % m] = ends[k];
     }
     for (var k = 0; k < m; k += 1)
     {
-        const nk = normals[k];
-        ents = append(ents, lineEnt(pts[k] + nk * r, pts[k + 1] + nk * r));
-        if (k + 1 < m)
+        const p = lp[k];
+        if (p.kind == "L")
+            ents = append(ents, lineEnt(starts[k], ends[k]));
+        else
         {
-            const nn = normals[k + 1];
-            const q = pts[k + 1];
-            ents = append(ents, arcEnt(q + nk * r, q + normalize(nk + nn) * r, q + nn * r));
+            const mid = pieceAt(p, 0.5);
+            ents = append(ents, arcEnt(starts[k], mid + normalAt(p, mid) * r, ends[k]));
         }
+        const q = lp[(k + 1) % m];
+        const n1 = normalAt(p, p.b);
+        const n2 = normalAt(q, q.a);
+        if (!smoothJoin(n1, n2))
+            ents = append(ents, arcEnt(ends[k], p.b + normalize(n1 + n2) * r, starts[(k + 1) % m]));
     }
-    const aX = X - uX * r;
-    const aE = E - uE * r;
-    const nl = normals[m - 1];
-    const n0 = normals[0];
-    ents = append(ents, arcEnt(X + nl * r, X + normalize(nl - uX) * r, aX));
-    ents = append(ents, arcEnt(aX, C + mid * (rho - r), aE));
-    return append(ents, arcEnt(aE, E + normalize(n0 - uE) * r, E + n0 * r));
-}
-
-// An exact sector: side lines half a spoke off the spokes, the outer arc of
-// radius ro + r = rb and the inner one of radius ri - r = ra about the
-// circle's centre, and a corner arc of radius r at each of its four corners.
-function sectorOutline(s is map, r is number) returns array
-{
-    const C = s.C;
-    const A0 = s.A0;
-    const B0 = s.B0;
-    const B1 = s.B1;
-    const A1 = s.A1;
-    const n0 = leftNormal(s.u0);
-    const n1 = leftNormal(s.u1);
-    const b = normalize(s.u0 + s.u1);
-    if (r <= 0)
-        return [lineEnt(A0, B0), arcEnt(B0, C + b * s.ro, B1), lineEnt(B1, A1), arcEnt(A1, C + b * s.ri, A0)];
-    const a0 = normalize(A0 - C);
-    const a1 = normalize(A1 - C);
-    const b0 = normalize(B0 - C);
-    const b1 = normalize(B1 - C);
-    const pA0 = A0 - n0 * r;
-    const pB0 = B0 - n0 * r;
-    const qB0 = B0 + b0 * r;
-    const qB1 = B1 + b1 * r;
-    const pB1 = B1 + n1 * r;
-    const pA1 = A1 + n1 * r;
-    const qA1 = A1 - a1 * r;
-    const qA0 = A0 - a0 * r;
-    return [lineEnt(pA0, pB0),
-            arcEnt(pB0, B0 + normalize(b0 - n0) * r, qB0),
-            arcEnt(qB0, C + b * (s.ro + r), qB1),
-            arcEnt(qB1, B1 + normalize(b1 + n1) * r, pB1),
-            lineEnt(pB1, pA1),
-            arcEnt(pA1, A1 + normalize(n1 - a1) * r, qA1),
-            arcEnt(qA1, C + b * (s.ri - r), qA0),
-            arcEnt(qA0, A0 + normalize(a0 + n0) * -r, pA0)];
+    return ents;
 }
 
 function holeOutline(hole is map, r is number) returns array
 {
-    if (hole.sector != undefined)
-        return sectorOutline(hole.sector, r);
-    if (hole.bite != undefined)
-        return biteOutline(hole.bite, r);
+    if (hole.loop != undefined)
+        return loopOutline(hole.loop, r);
     return coreOutline(hole.core, r);
 }
 
@@ -2056,9 +2655,9 @@ function drawHole(sketch is Sketch, prefix is string, hole is map, r is number)
 
 // ---------------------------------------------------------------- areas
 //
-// Steiner's formula, area + perimeter * r + pi r^2, for the core grown by r.
-// It holds for the bitten and sector shapes as for a convex one: each outline
-// turns through exactly one full turn, and grown by r stays simple.
+// Steiner's formula, area + perimeter * r + pi r^2, for a shape grown by r.
+// It holds for every hole here: each outline turns through exactly one full
+// turn, and grown by r stays simple.
 
 function coreArea(core is array, r is number) returns number
 {
@@ -2068,32 +2667,14 @@ function coreArea(core is array, r is number) returns number
     return abs(signedArea(core)) + per * r + PI * r * r;
 }
 
-// The polygon E ... X less the circular segment beyond its chord X-E.
-function biteArea(b is map, r is number) returns number
+function loopHoleArea(lp is array, r is number) returns number
 {
-    const pts = b.pts;
-    var per = 0;
-    for (var k = 0; k < size(pts) - 1; k += 1)
-        per += norm(pts[k + 1] - pts[k]);
-    per += b.rho * b.sweep;
-    const area = abs(signedArea(pts)) - b.rho * b.rho / 2 * (b.sweep - sin(b.sweep * radian));
-    return area + per * r + PI * r * r;
-}
-
-// The four corners' polygon, plus the outer circular segment, less the inner.
-function sectorArea(s is map, r is number) returns number
-{
-    const side = norm(s.B0 - s.A0) + norm(s.A1 - s.B1);
-    const area = abs(signedArea([s.A0, s.B0, s.B1, s.A1])) + s.ro * s.ro / 2 * (s.phiO - sin(s.phiO * radian))
-        - s.ri * s.ri / 2 * (s.phiI - sin(s.phiI * radian));
-    return area + (side + s.ro * s.phiO + s.ri * s.phiI) * r + PI * r * r;
+    return loopArea(lp) + loopPerimeter(lp) * r + PI * r * r;
 }
 
 function holeArea(hole is map, r is number) returns number
 {
-    if (hole.sector != undefined)
-        return sectorArea(hole.sector, r);
-    if (hole.bite != undefined)
-        return biteArea(hole.bite, r);
+    if (hole.loop != undefined)
+        return loopHoleArea(hole.loop, r);
     return coreArea(hole.core, r);
 }
