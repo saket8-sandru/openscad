@@ -12,6 +12,7 @@ matrix before it is called finished.
 | --- | --- | --- |
 | [`waveform-wall`](projects/waveform-wall/docs/README.md) | **LAMELLA** — parametric ribbed wave wall-art generator. Any size, tiled automatically, with vertical seams that measure invisible. 22 controls. | CAD-validated, not yet print-tested |
 | [`waveform-frame`](projects/waveform-frame/docs/README.md) | **LAMELLA FRAME** — the simple sibling. One framed piece off one plate, natural terrain field, 8 controls. | CAD-validated, not yet print-tested |
+| [`orbit-ball`](projects/orbit-ball/docs/README.md) | Reference dimensions for modelling the twist "Orbit Ball" fidget in Onshape: sourced envelope, derived ball/groove/track geometry, checked by `tools/orbitfit.py`. No `.scad` model. | Research + derived; ball size unsourced, not printed |
 
 The two share a field engine in spirit but not in code: the frame version uses
 scattered terrain points rather than interfering waves, because independent
