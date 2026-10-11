@@ -1,0 +1,10 @@
+{
+	"autodeskProduct":	"Fusion",
+	"type":	"script",
+	"author":	"",
+	"description":	{
+		"":	"Builds the twist Orbit Ball fidget: two halves, sleeve, three balls"
+	},
+	"supportedOS":	"windows|mac",
+	"editEnabled":	true
+}

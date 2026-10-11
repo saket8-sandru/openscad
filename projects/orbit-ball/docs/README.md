@@ -273,6 +273,22 @@ What the evidence allows:
   2 × `Groove_Clr` = 0.6 mm. Radial play uses 0.1 of that. The detent is
   below, and the 1 mm lead-ins take up the rest.
 
+## Building it in Fusion
+
+`fusion/OrbitBall/` is a Fusion script that builds all of the parts in a new
+design, as a normal editable timeline. The parts are both halves, the sleeve
+and three balls.
+
+To run it:
+1. In Fusion, open *Utilities → Add-Ins → Scripts and Add-Ins*.
+2. Click **+**, choose *Script or add-in from device*, and pick the
+   `OrbitBall` folder.
+3. Click *Run*.
+
+It has not been run in Fusion yet; it was only dry-run against a stand-in
+API. If it stops partway, it shows the error text, so you can paste that
+back here.
+
 ## Building it in Onshape
 
 1. **Variables** as above.
