@@ -201,14 +201,23 @@ def build(design, d, notes):
     zr = math.sqrt(Ro * Ro - rp * rp)
     a0, a1 = math.atan2(zc, rc), math.atan2(zr, rp)
     am = (a0 + a1) / 2
+    pole_target = to_sk(sk, rp, 0, zr)
     arc = sk.sketchCurves.sketchArcs.addByThreePoints(
-        to_sk(sk, rc, 0, zc), to_sk(sk, Ro * math.cos(am), 0, Ro * math.sin(am)), to_sk(sk, rp, 0, zr))
+        to_sk(sk, rc, 0, zc), to_sk(sk, Ro * math.cos(am), 0, Ro * math.sin(am)), pole_target)
+    # Fusion orders an arc's start/end counter-clockwise about the sketch normal,
+    # not in the order the points were given, so find the two ends by position.
+    if arc.startSketchPoint.geometry.distanceTo(pole_target) < 1e-6:
+        pole_pt, rim_pt = arc.startSketchPoint, arc.endSketchPoint
+    else:
+        pole_pt, rim_pt = arc.endSketchPoint, arc.startSketchPoint
     lines = sk.sketchCurves.sketchLines
-    l1 = lines.addByTwoPoints(arc.endSketchPoint, to_sk(sk, rp, 0, z_seat))
+    l1 = lines.addByTwoPoints(pole_pt, to_sk(sk, rp, 0, z_seat))
     l2 = lines.addByTwoPoints(l1.endSketchPoint, to_sk(sk, rb, 0, z_seat))
     l3 = lines.addByTwoPoints(l2.endSketchPoint, to_sk(sk, rb, 0, 0))
     l4 = lines.addByTwoPoints(l3.endSketchPoint, to_sk(sk, Ro - c, 0, 0))
-    lines.addByTwoPoints(l4.endSketchPoint, arc.startSketchPoint)
+    lines.addByTwoPoints(l4.endSketchPoint, rim_pt)
+    if sk.profiles.count != 1:
+        raise RuntimeError("Body section has %d profiles, expected 1" % sk.profiles.count)
     half = revolve(root, sk.profiles.item(0), z_axis, NEW).bodies.item(0)
     half.name = "Half_Head"
 
@@ -249,8 +258,19 @@ def build(design, d, notes):
         S = adsk.core.SurfaceTypes
         edges = []
         for e in half.edges:
-            kinds = {f.geometry.surfaceType for f in e.faces}
-            if S.SphereSurfaceType in kinds and (S.TorusSurfaceType in kinds or S.ConeSurfaceType in kinds):
+            geoms = [f.geometry for f in e.faces]
+            kinds = {g.surfaceType for g in geoms}
+            if S.SphereSurfaceType not in kinds:
+                continue
+            hit = S.TorusSurfaceType in kinds
+            for g in geoms:
+                # Lead-in cones sit off the Z axis; the rim chamfer is a cone ON the
+                # Z axis and must stay sharp, so leave its edge out.
+                if g.surfaceType == S.ConeSurfaceType:
+                    cone = adsk.core.Cone.cast(g)
+                    if math.hypot(cone.origin.x, cone.origin.y) > 0.1:
+                        hit = True
+            if hit:
                 edges.append(e)
         fil = root.features.filletFeatures
         inp = fil.createInput()

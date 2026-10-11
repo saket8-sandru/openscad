@@ -285,9 +285,21 @@ To run it:
    `OrbitBall` folder.
 3. Click *Run*.
 
-It has not been run in Fusion yet; it was only dry-run against a stand-in
-API. If it stops partway, it shows the error text, so you can paste that
-back here.
+Its build steps have been run in Fusion once, through the Fusion MCP server,
+with the default `DIM` values (`Lobes = 2`):
+- The run used an adapted copy: no message boxes, and it built into the open
+  design. This file's own `run()` entry point has not been run from the
+  Scripts dialog.
+- Result: two solid halves (21,859 and 22,004 mm³), the sleeve and three
+  balls. The only interference is the intended 0.1 mm sleeve/bore overlap.
+- `Lobes = 3` has not been run in Fusion.
+
+That first run found one bug, now fixed: Fusion orders a sketch arc's ends
+counter-clockwise, not in the order given, so the body section
+self-intersected. The lip fillet also now leaves the rim chamfer edge sharp.
+
+If it stops partway, it shows the error text, so you can paste that back
+here.
 
 ## Building it in Onshape
 
