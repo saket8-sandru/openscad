@@ -42,7 +42,21 @@
     "what four split-clamp wheels should be. Slicers drop them.",
     "",
     "That case is also the heaviest thing the sliders can reach: 98.6s and",
-    "209.8mm wide against a predicted 209.75."
+    "209.8mm wide against a predicted 209.75.",
+    "",
+    "The three flange_tall cases grew when belt_width stopped being the channel",
+    "height and became the belt seat. They are not capped any more and do not",
+    "need to be: the channel is built as the seat plus whatever the chamfers",
+    "take, so two chamfers cannot meet however tall the flange is. A 10mm flange",
+    "on a 6mm belt is an odd part, but it is the part the sliders were asked for,",
+    "and it is watertight, single-bodied and still seats its belt.",
+    "",
+    "Body count and bounding box cannot see the defect that prompted this. A 6mm",
+    "pulley with 3.2mm of usable belt seat is a perfectly valid mesh. That check",
+    "lives in tools/beltseat.py, which slices the solid and finds the unbroken",
+    "run of heights where nothing stands outside the tooth tips -- where the",
+    "belt's back can actually go. Run it after any change to the flanges or the",
+    "channel; the validation report lists the numbers it should give."
   ],
   "cases": [
     {
@@ -378,9 +392,9 @@
         "watertight": true,
         "bodies": 1,
         "max_bbox": [
-          20,
-          20,
-          20.5
+          33,
+          33,
+          41
         ]
       }
     },
@@ -395,9 +409,9 @@
         "watertight": true,
         "bodies": 1,
         "max_bbox": [
-          50,
-          50,
-          45
+          46,
+          46,
+          61
         ]
       }
     },
@@ -411,9 +425,9 @@
         "watertight": true,
         "bodies": 1,
         "max_bbox": [
-          23,
-          23,
-          16
+          33,
+          33,
+          26
         ]
       }
     },
