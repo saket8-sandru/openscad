@@ -83,6 +83,13 @@ d_flat = 0.5;          // [0.2:0.05:2.0]
 // cut at each corner gives the nozzle somewhere to turn into. 0 disables it.
 corner_relief = 0.6;   // [0:0.05:1.5]
 
+// Lead-in at both ends of the bore, so a shaft starts square instead of
+// catching on the first layer. Printed holes always have a lip at the mouth --
+// the first layer squashes outward and the last one sags inward -- and without
+// a lead-in that lip is the whole fit. Cut at 45 degrees, like the flanges, so
+// it needs no support. 0 disables it.
+bore_lead_in = 0.6;    // [0:0.1:3.0]
+
 // Added all round the bore. Raise if shafts are tight, lower if loose.
 bore_clearance = 0.15; // [0.000:0.025:0.600]
 
@@ -365,12 +372,18 @@ function hex_corners(af) =
 function square_corners(af) =
     [ for (sx = [-1, 1]) for (sy = [-1, 1]) [sx * af / 2, sy * af / 2] ];
 
-// REX relieves on the six HEX vertices, not on the twelve places the round
-// clips them. Relieving the clip points put two scallops at every corner,
-// which is two holes where the shaft has one corner. The hex vertex is where
-// the shaft's corner actually is, so one circle centred there is both the
-// simpler shape and the one that matches the part going in -- even though the
-// bore's own outline has no vertex there, the round having cut it off.
+// REX relieves once per hex vertex -- the shaft has one corner there, so two
+// scallops at the places the round clips the point off is one too many.
+//
+// But the hex vertex itself sits OUTSIDE the round that clips it (4.388mm
+// against 4.150mm at stock clearance), so a circle centred exactly there sits
+// mostly in solid material behind the bore wall: further back than the corner
+// it is supposed to relieve, which is what it looked like on the part. The
+// radius is therefore clamped to the round, putting the circle on the bore's
+// own edge at the vertex angle, which is where the corner actually is.
+function rex_corners(round_d, hex_af) =
+    let (r = min(hex_af / (2 * cos(30)), round_d / 2))
+    [ for (k = [0 : 5]) let (a = 60 * k) [r * cos(a), r * sin(a)] ];
 
 module corner_cuts(pts) {
     if (corner_relief > 0)
@@ -398,15 +411,34 @@ module bore_2d() {
     else if (bore_type == "REX 8mm")
         union() {
             rex_2d(REX_ROUND + 2 * bore_clearance, REX_HEX + 2 * bore_clearance);
-            corner_cuts(hex_corners(REX_HEX + 2 * bore_clearance));
+            corner_cuts(rex_corners(REX_ROUND + 2 * bore_clearance,
+                                    REX_HEX + 2 * bore_clearance));
         }
     else if (bore_type == "Bearing seat") circle(d = bore_d + 2 * bore_clearance);
 }
 
+// A mouth is the plain profile grown by the lead-in at the face, tapering back
+// to the plain profile that far in. Hulled rather than scaled: scaling an
+// extrusion grows a hex by a ratio, so the corners move further than the flats
+// and the lead-in would not be an even width. offset() keeps it even, and
+// rounds the relief notches on the way, which is the fillet.
+module bore_mouth(z_face, z_full) {
+    hull() {
+        translate([0, 0, z_face]) linear_extrude(0.01, convexity = 6)
+            offset(r = bore_lead_in) bore_2d();
+        translate([0, 0, z_full]) linear_extrude(0.01, convexity = 6) bore_2d();
+    }
+}
+
 module bore_cut(height) {
-    if (bore_type != "None (solid)")
+    if (bore_type != "None (solid)") {
         translate([0, 0, -EPS])
             linear_extrude(height = height + 2 * EPS, convexity = 6) bore_2d();
+        if (bore_lead_in > 0) {
+            bore_mouth(-EPS, bore_lead_in);
+            bore_mouth(height + EPS - 0.01, height - bore_lead_in);
+        }
+    }
 }
 
 // --- clamping ----------------------------------------------------------
