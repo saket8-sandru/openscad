@@ -365,15 +365,12 @@ function hex_corners(af) =
 function square_corners(af) =
     [ for (sx = [-1, 1]) for (sy = [-1, 1]) [sx * af / 2, sy * af / 2] ];
 
-// REX has no vertices: the round clips the hex points off, so the corners are
-// the twelve places a flat runs into the arc. Each flat's normal points at
-// 30 + 60k degrees, and the arc meets it +/- acos(inradius / round radius).
-function rex_corners(round_d, hex_af) =
-    let (rr = round_d / 2, ri = hex_af / 2)
-    (ri >= rr) ? hex_corners(hex_af)     // round too big to clip: real vertices
-    : let (dd = acos(ri / rr))
-      [ for (k = [0 : 5]) for (sgn = [-1, 1])
-          let (a = 30 + 60 * k + sgn * dd) [rr * cos(a), rr * sin(a)] ];
+// REX relieves on the six HEX vertices, not on the twelve places the round
+// clips them. Relieving the clip points put two scallops at every corner,
+// which is two holes where the shaft has one corner. The hex vertex is where
+// the shaft's corner actually is, so one circle centred there is both the
+// simpler shape and the one that matches the part going in -- even though the
+// bore's own outline has no vertex there, the round having cut it off.
 
 module corner_cuts(pts) {
     if (corner_relief > 0)
@@ -401,8 +398,7 @@ module bore_2d() {
     else if (bore_type == "REX 8mm")
         union() {
             rex_2d(REX_ROUND + 2 * bore_clearance, REX_HEX + 2 * bore_clearance);
-            corner_cuts(rex_corners(REX_ROUND + 2 * bore_clearance,
-                                    REX_HEX + 2 * bore_clearance));
+            corner_cuts(hex_corners(REX_HEX + 2 * bore_clearance));
         }
     else if (bore_type == "Bearing seat") circle(d = bore_d + 2 * bore_clearance);
 }
