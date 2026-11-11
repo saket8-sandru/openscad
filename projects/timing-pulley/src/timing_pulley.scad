@@ -33,8 +33,17 @@ belt_profile = "GT2 2mm"; // [GT2 2mm, HTD 5M]
 // across, so past here the plate runs out before the render budget does.
 teeth = 20;            // [8:1:75]
 
-// Belt width. Common: GT2 6 or 9mm, HTD 5M 9 or 15mm.
+// Belt width. Common: GT2 6, 9 or 12mm; HTD 5M 9, 15 or 25mm.
+//
+// This is what the BELT GETS: the channel is built taller than this so the
+// flange chamfers sit outside it, not inside. Earlier it was the channel
+// height, so two 1.4mm chamfers ate into it and a "6mm" pulley left about
+// 3.2mm of full-depth tooth for a 6mm belt. That was wrong.
 belt_width = 6;        // [3:1:30]
+
+// Side play between the belt and the flanges. The belt must not be pinched,
+// and a printed flange is never perfectly flat.
+belt_clearance = 0.5;  // [0:0.1:2.0]
 
 // Tooth counts generated side by side when output = "Size set". 0 skips a slot.
 // These are four pulleys on one plate, so the total width is checked against
@@ -67,6 +76,12 @@ bore_size = 5;         // [2:0.5:30]
 
 // Depth of the flat on a D-shaft, measured in from the round.
 d_flat = 0.5;          // [0.2:0.05:2.0]
+
+// Corner relief for the cornered bores -- hex, square and REX. A nozzle cannot
+// turn a sharp inside corner, so it leaves a fillet of material exactly where
+// a shaft's corner needs to go, and the shaft will not seat. A small circle
+// cut at each corner gives the nozzle somewhere to turn into. 0 disables it.
+corner_relief = 0.6;   // [0:0.05:1.5]
 
 // Added all round the bore. Raise if shafts are tight, lower if loose.
 bore_clearance = 0.15; // [0.000:0.025:0.600]
@@ -249,23 +264,27 @@ hub_dia = (clamp == "None")
     ? max(bore_fit + 4, min(root_dia, bore_fit + 8))
     : 2 * (clamp_offset + screw_free / 2 + 1.4);
 
-body_h  = belt_width;
-
-// A 45-degree chamfer rises as far as it stands proud, so a flange taller than
-// half the belt channel drives its chamfer through the middle of the channel and
-// out the far side. The tooth cutter then slices the overlap into loose
-// fragments -- flange_height 10 on a 6mm belt gave 21 disconnected bodies, one
-// per tooth, and the top flange hung 1mm below the plate.
+// A 45-degree chamfer rises as far as it stands proud, so each flange's
+// chamfer reaches flange_rise into the toothed channel and blocks the belt
+// over that stretch. The channel is therefore built as the belt seat PLUS
+// however much the chamfers take, instead of the belt seat being whatever the
+// chamfers leave behind.
 //
-// The rule is one line: whatever the chamfers take, leave 0.8mm of the channel
-// at full groove depth, so the belt still has two extrusion widths of real
-// tooth to sit in. The HEIGHT is what gets capped, not the chamfer alone --
-// capping just the chamfer would steepen it past 45 degrees, and 45 degrees is
-// the thing that lets this part print without support.
-FULL_DEPTH_MIN = 0.8;
-usable_rise = body_h - FULL_DEPTH_MIN;
-max_flange_rise = (flanges == "Both sides") ? usable_rise / 2 : usable_rise;
-flange_rise = min(flange_height, max_flange_rise);
+// This replaces a cap that limited flange_rise so the chamfers could not eat
+// the whole channel. The cap kept the mesh valid -- without it, flange_height
+// 10 on a 6mm belt produced 21 disconnected bodies and hung below the plate --
+// but it was treating the symptom. It still left a nominally 6mm pulley with
+// about 3.2mm of full-depth tooth under a 6mm belt, which is the defect, and
+// no mesh check would ever have reported it. Growing the channel makes the
+// overlap impossible by construction, so no cap is needed at all.
+flange_rise = flange_height;
+
+chamfers_in_channel = (flanges == "Both sides") ? 2
+                    : (flanges == "One side")   ? 1 : 0;
+
+// What the belt actually gets, at full groove depth.
+belt_seat = belt_width + belt_clearance;
+body_h    = belt_seat + chamfers_in_channel * flange_rise;
 
 flange_dia = outside_dia + 2 * flange_rise;
 
@@ -315,10 +334,50 @@ hub_h   = (hub == "Extended hub") ? max(0, hub_length) : 0;
 module hex_2d(across_flats) { circle(d = across_flats / cos(30), $fn = 6); }
 module square_2d(across_flats) { square([across_flats, across_flats], center = true); }
 
-// goBILDA's 8mm REX is defined as an 8mm round combined with a 7mm hex --
-// it passes through a standard 8mm bearing but still drives positively.
+// REX: an 8mm round combined with a hex, so it passes through a standard 8mm
+// bearing but still drives positively. The across-flats figure is the user's,
+// measured off the goBILDA hardware this is built for -- it was 7.0 here,
+// which is 0.3mm tight on the real shaft.
+REX_ROUND = 8.0;
+REX_HEX   = 7.3;
+
 module rex_2d(round_d, hex_af) {
     intersection() { circle(d = round_d); hex_2d(hex_af); }
+}
+
+// --- corner relief ------------------------------------------------------
+//
+// An extrusion nozzle has a radius and cannot turn a sharp inside corner. On
+// a hex or square hole it rounds every corner off, leaving material precisely
+// where the shaft's own corner has to go, and the shaft will not seat -- the
+// hole measures right across the flats and still does not fit. Cutting a
+// small circle at each corner gives the nozzle somewhere to turn into and
+// puts the leftover material where nothing needs to be.
+//
+// The corners are computed from each profile rather than listed, so they stay
+// correct when clearance changes the size.
+
+// $fn=6 puts the first vertex at 0 degrees, so they run 0, 60, ... 300.
+function hex_corners(af) =
+    let (r = af / (2 * cos(30)))
+    [ for (k = [0 : 5]) let (a = 60 * k) [r * cos(a), r * sin(a)] ];
+
+function square_corners(af) =
+    [ for (sx = [-1, 1]) for (sy = [-1, 1]) [sx * af / 2, sy * af / 2] ];
+
+// REX has no vertices: the round clips the hex points off, so the corners are
+// the twelve places a flat runs into the arc. Each flat's normal points at
+// 30 + 60k degrees, and the arc meets it +/- acos(inradius / round radius).
+function rex_corners(round_d, hex_af) =
+    let (rr = round_d / 2, ri = hex_af / 2)
+    (ri >= rr) ? hex_corners(hex_af)     // round too big to clip: real vertices
+    : let (dd = acos(ri / rr))
+      [ for (k = [0 : 5]) for (sgn = [-1, 1])
+          let (a = 30 + 60 * k + sgn * dd) [rr * cos(a), rr * sin(a)] ];
+
+module corner_cuts(pts) {
+    if (corner_relief > 0)
+        for (pt = pts) translate(pt) circle(d = corner_relief, $fn = 16);
 }
 
 module bore_2d() {
@@ -329,9 +388,22 @@ module bore_2d() {
             translate([-bore_fit, -bore_fit / 2 - (bore_fit / 2 - d_flat)])
                 square([2 * bore_fit, 2 * bore_fit]);
         }
-    else if (bore_type == "Hex")     hex_2d(bore_d + 2 * bore_clearance);
-    else if (bore_type == "Square")  square_2d(bore_d + 2 * bore_clearance);
-    else if (bore_type == "REX 8mm") rex_2d(8 + 2 * bore_clearance, 7 + 2 * bore_clearance);
+    else if (bore_type == "Hex")
+        union() {
+            hex_2d(bore_d + 2 * bore_clearance);
+            corner_cuts(hex_corners(bore_d + 2 * bore_clearance));
+        }
+    else if (bore_type == "Square")
+        union() {
+            square_2d(bore_d + 2 * bore_clearance);
+            corner_cuts(square_corners(bore_d + 2 * bore_clearance));
+        }
+    else if (bore_type == "REX 8mm")
+        union() {
+            rex_2d(REX_ROUND + 2 * bore_clearance, REX_HEX + 2 * bore_clearance);
+            corner_cuts(rex_corners(REX_ROUND + 2 * bore_clearance,
+                                    REX_HEX + 2 * bore_clearance));
+        }
     else if (bore_type == "Bearing seat") circle(d = bore_d + 2 * bore_clearance);
 }
 
