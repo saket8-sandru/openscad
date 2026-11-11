@@ -41,14 +41,26 @@ projects/<product>/
 | Tool | Version | Notes |
 | --- | --- | --- |
 | OpenSCAD | 2021.01 | Stable release; the one MakerWorld's Parametric Model Maker runs. Nightly-only features are deliberately avoided. |
-| trimesh | 5.1.0 | Mesh validation. |
+| trimesh | 5.1.0 / 5.2.0 | Mesh validation. Both have been used; results agree. |
 | scipy / numpy / networkx | 1.17.1 / 2.4.6 / 3.6.1 | Connected components, field maths, mesh splitting. |
 | xvfb | — | OpenSCAD 2021.01 needs an X server for PNG export; STL export does not. |
 
 ```bash
 apt-get install -y openscad xvfb
-pip3 install numpy scipy trimesh pillow networkx
+
+# NOT `pip3 install`. On images carrying more than one Python, `pip` and
+# `python3` can resolve to different interpreters -- seen here with pip on
+# 3.13 and python3 on 3.11. The install then SUCCEEDS and `import trimesh`
+# still fails, which reads as a broken harness rather than a misplaced
+# package. Name the interpreter and the question does not arise:
+python3 -m pip install numpy scipy trimesh pillow networkx
 ```
+
+Nothing in the harness is pinned to one machine. The 20T GT2 pulley re-exported
+from a clean OpenSCAD install on a different container image came back at
+12712 faces, one body, and a volume matching the committed export to nine
+decimal places. If a matrix starts failing everywhere at once, suspect a
+missing toolchain before suspecting the generators.
 
 ## Using the harness
 
