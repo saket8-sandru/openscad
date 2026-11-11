@@ -83,12 +83,11 @@ d_flat = 0.5;          // [0.2:0.05:2.0]
 // cut at each corner gives the nozzle somewhere to turn into. 0 disables it.
 corner_relief = 0.6;   // [0:0.05:1.5]
 
-// Lead-in at both ends of the bore, so a shaft starts square instead of
-// catching on the first layer. Printed holes always have a lip at the mouth --
-// the first layer squashes outward and the last one sags inward -- and without
-// a lead-in that lip is the whole fit. Cut at 45 degrees, like the flanges, so
-// it needs no support. 0 disables it.
-bore_lead_in = 0.6;    // [0:0.1:3.0]
+// Fillet radius on the bore's top and bottom edges -- the edges a shaft meets
+// going in. A printed hole has a lip at each mouth whatever the bore measures,
+// the first layer squashing outward and the last sagging inward, and without
+// this the shaft lands on that lip instead of on the bore. 0 disables it.
+bore_fillet = 0.6;     // [0:0.1:3.0]
 
 // Added all round the bore. Raise if shafts are tight, lower if loose.
 bore_clearance = 0.15; // [0.000:0.025:0.600]
@@ -417,16 +416,50 @@ module bore_2d() {
     else if (bore_type == "Bearing seat") circle(d = bore_d + 2 * bore_clearance);
 }
 
-// A mouth is the plain profile grown by the lead-in at the face, tapering back
-// to the plain profile that far in. Hulled rather than scaled: scaling an
-// extrusion grows a hex by a ratio, so the corners move further than the flats
-// and the lead-in would not be an even width. offset() keeps it even, and
-// rounds the relief notches on the way, which is the fillet.
-module bore_mouth(z_face, z_full) {
-    hull() {
-        translate([0, 0, z_face]) linear_extrude(0.01, convexity = 6)
-            offset(r = bore_lead_in) bore_2d();
-        translate([0, 0, z_full]) linear_extrude(0.01, convexity = 6) bore_2d();
+// A real fillet on the bore mouth: a quarter round swept along the bore's own
+// outline, so it follows the hexagon's flats and corners instead of bulging
+// past them.
+//
+// Two things the first attempt got wrong, both visible on the rendered part.
+// It used offset(r=), which ROUNDS convex corners, so the mouth opened as a
+// blob that ignored the hex. And it hulled straight between two profiles,
+// which is a chamfer, not a fillet. This steps the offset along a circular arc
+// instead, and uses offset(delta=), which miters: the outline keeps its own
+// corners and simply moves outward by a constant distance.
+//
+// The arc is walked by ANGLE, not by depth. At angle a the ring stands off by
+// R(1 - sin a) and sits R(1 - cos a) deep, so a = 0 is the face at full width
+// and a = 90 is where it meets the bore wall, both tangentially. Stepping
+// uniformly in depth instead bunches the samples where the arc is flat and
+// starves them where it turns hardest: measured, that overshot by 0.038mm near
+// the face. Even steps in angle put the chord error at R(1 - cos(45/STEPS)),
+// which is under two microns here.
+FILLET_STEPS = 10;
+// The sample slabs must be thinner than the shallowest step they sit in, or
+// they set the shape instead of the arc. The first step is only
+// R(1 - cos(90/STEPS)) deep -- 0.0074mm at a 0.6mm fillet -- so EPS at 0.02
+// was fourteen times too thick and held the mouth at full width.
+FILLET_SLAB = 0.001;
+
+module bore_fillet_at(z_face, dir) {
+    r = bore_fillet;
+    // Carry the widest ring out past the face, outward only -- straddling the
+    // face would hold the mouth at full width a little way into the part.
+    translate([0, 0, z_face + (dir > 0 ? -2 * EPS : 0)])
+        linear_extrude(2 * EPS, convexity = 6) offset(delta = r) bore_2d();
+
+
+    for (i = [0 : FILLET_STEPS - 1]) {
+        a0 = 90 * i / FILLET_STEPS;
+        a1 = 90 * (i + 1) / FILLET_STEPS;
+        hull() {
+            translate([0, 0, z_face + dir * r * (1 - cos(a0))])
+                linear_extrude(FILLET_SLAB, convexity = 6)
+                    offset(delta = r * (1 - sin(a0))) bore_2d();
+            translate([0, 0, z_face + dir * r * (1 - cos(a1))])
+                linear_extrude(FILLET_SLAB, convexity = 6)
+                    offset(delta = r * (1 - sin(a1))) bore_2d();
+        }
     }
 }
 
@@ -434,9 +467,9 @@ module bore_cut(height) {
     if (bore_type != "None (solid)") {
         translate([0, 0, -EPS])
             linear_extrude(height = height + 2 * EPS, convexity = 6) bore_2d();
-        if (bore_lead_in > 0) {
-            bore_mouth(-EPS, bore_lead_in);
-            bore_mouth(height + EPS - 0.01, height - bore_lead_in);
+        if (bore_fillet > 0) {
+            bore_fillet_at(0, 1);
+            bore_fillet_at(height, -1);
         }
     }
 }
