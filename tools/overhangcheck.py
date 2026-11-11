@@ -7,9 +7,13 @@ back-face-down the fins are a height field, so every layer's footprint sits
 inside the one below. This checks that claim the only way worth checking it --
 by measuring the downward-facing faces of the actual STL.
 
-Print orientation maps the model's +Y (depth, away from the wall) to the
-printer's +Z. A face is a support risk when it points downward and lies closer
-to horizontal than the support threshold.
+Which model axis points up on the plate is per-product, and getting it wrong
+makes the whole report meaningless -- it measures the part lying on its side.
+The wall panel prints back-face-down, mapping its +Y to the printer's +Z, and
+that is the default. The pulley prints axis-up and needs --up-axis z. Pass it.
+
+A face is a support risk when it points downward and lies closer to horizontal
+than the support threshold.
 
 Two kinds of downward face are expected and are NOT failures:
   - the flat back face itself, which is the surface on the build plate;
@@ -71,13 +75,17 @@ def main() -> int:
     ap.add_argument("stl", type=Path, nargs="+")
     ap.add_argument("--threshold", type=float, default=45.0,
                     help="faces inclined less than this from the plate are risky")
+    ap.add_argument("--up-axis", choices=["x", "y", "z"], default="y",
+                    help="model axis that points up on the plate "
+                         "(y: wall panel, the default; z: pulley)")
     ap.add_argument("--max-bridge", type=float, default=20.0,
                     help="longest acceptable unsupported bridge span, mm")
     args = ap.parse_args()
 
     failures = 0
     for path in args.stl:
-        r = analyse(path, args.threshold)
+        axis = {"x": 0, "y": 1, "z": 2}[args.up_axis]
+        r = analyse(path, args.threshold, up_axis=axis)
         mesh, areas = r["mesh"], r["areas"]
         total = areas.sum()
         a_bed = areas[r["on_bed"]].sum()
@@ -90,7 +98,7 @@ def main() -> int:
         print(f"    on the build plate (the back face): {100*a_bed/total:.2f}% of area")
         print(f"    internal (enclosed bridges):        {100*a_int/total:.2f}% of area")
 
-        spans = bridge_spans(mesh, r["internal"])
+        spans = bridge_spans(mesh, r["internal"], up_axis=axis)
         if not spans:
             print("    no internal downward faces at all")
         for w, h, area, z in spans[:8]:

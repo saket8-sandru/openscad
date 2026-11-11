@@ -109,6 +109,12 @@ clamp = "Split clamp"; // [Split clamp, Captive nut, Collet shell, None]
 // Screw size used by the chosen clamp.
 clamp_screw = "M3";    // [M3, M4, M5]
 
+// Depth of the flat seats counterbored into the hub for the screw head and the
+// nut. Without them both land on the hub's curved, steeply angled outside and
+// cannot pull square -- which is no clamp at all. Nothing under 2mm gives a
+// head anything real to pull against.
+screw_seat_depth = 2.0; // [1.0:0.1:6.0]
+
 
 /* [Output] */
 
@@ -262,13 +268,48 @@ assert(!bore_matters || bore_fit + 2 * MIN_RIM <= governing_root,
            r2(max_bore), "mm bore. Lower bore_size to that, or raise teeth to ",
            min_teeth_for_bore, "."));
 
+// Socket head cap screw head diameter (ISO 4762).
+head_dia = clamp_screw == "M5" ? 8.5 : clamp_screw == "M4" ? 7.0 : 5.5;
+
+// A seat has to take whichever is bigger, a head or a nut measured across its
+// corners, plus a little slop.
+seat_dia  = max(head_dia, nut_af / cos(30)) + 0.4;
+SEAT_WALL = 1.4;     // material between a seat and the bore, and around a seat
+
 // The hub has to clear the bore AND carry the clamp screw beside it, since a
-// screw through the middle would just hit the shaft. That makes a clamping hub
-// noticeably fatter than a plain one -- real clamping pulleys are the same.
-clamp_offset = bore_fit / 2 + screw_free / 2 + 0.8;  // screw axis, off centre
+// screw through the middle would just hit the shaft. What sets the offset is
+// not the screw but its SEAT: a counterbore wide enough for a head or a nut
+// breaks into the bore long before the screw itself would, and a head sitting
+// in the shaft's way is worse than no clamp. So the offset is measured from
+// the seat, and the hub follows from it -- 27.4mm on an 8mm REX bore with M3,
+// against 19.9mm when only the screw shank had to clear. Clamping hubs are
+// chunky for this exact reason.
+clamp_offset = bore_fit / 2 + seat_dia / 2 + SEAT_WALL;
 hub_dia = (clamp == "None")
     ? max(bore_fit + 4, min(root_dia, bore_fit + 8))
-    : 2 * (clamp_offset + screw_free / 2 + 1.4);
+    : 2 * (clamp_offset + seat_dia / 2 + SEAT_WALL);
+
+// A lug carried right across the hub, so each end is a flat face square to the
+// screw. It reaches exactly the hub radius, so it costs no extra width: the
+// hub's own curve falls away at that offset and the lug fills back out to it.
+boss_dia = seat_dia + 2 * SEAT_WALL;
+
+// A clamping hub is wider than the pulley it stands on, so its underside is a
+// bare horizontal ledge all the way round: 6.2mm of it on an 8mm REX bore with
+// M3, measured as a 19.4mm unsupported span over 14% of the part's area. That
+// is not printable without support, and this part claims not to need any.
+//
+// A 45-degree skirt carries the hub down to the pulley's own diameter instead.
+// It is extra height rather than borrowed from the hub, so hub_length still
+// means the length of full-width hub the clamp actually uses.
+//
+// Taken per tooth count, because a Size set puts different diameters under the
+// same hub and each one needs its own skirt.
+function hub_base_dia_of(n) = (flanges == "None")
+    ? outside_dia_of(n) : outside_dia_of(n) + 2 * flange_rise;
+function hub_skirt_of(n) =
+    (hub_h > 0 && hub_dia > hub_base_dia_of(n))
+        ? (hub_dia - hub_base_dia_of(n)) / 2 : 0;
 
 // A 45-degree chamfer rises as far as it stands proud, so each flange's
 // chamfer reaches flange_rise into the toothed channel and blocks the belt
@@ -487,30 +528,66 @@ module bore_cut(height) {
 // squeezes it onto the shaft. Costs a second part, but the grip is a full
 // circumference and the shaft never touches printed threads at all.
 
-clamp_z   = total_h + hub_h / 2;
 slot_w    = 1.2;                     // flex gap; must be > one extrusion width
 collet_t  = 2.4;                     // sleeve wall
 collet_od = bore_fit + 2 * collet_t;
 
-module clamp_slot() {
+// z_base is the top of the skirt, where the full-width hub starts.
+module clamp_slot(z_base) {
     // Runs from the bore out through the hub wall, on one side only.
-    translate([-slot_w / 2, 0, clamp_z - hub_h / 2 - EPS])
+    translate([-slot_w / 2, 0, z_base - EPS])
         cube([slot_w, hub_dia, hub_h + 2 * EPS]);
 }
 
-module clamp_cuts() {
+// The lug the seats are cut into. Added with the hub, not cut from it.
+module clamp_boss(z_base) {
+    cz = z_base + hub_h / 2;
+    if (hub_h > 0 && clamp != "None")
+        // Clipped in HEIGHT only, so the lug cannot stand proud of the hub top
+        // or hang below where the skirt has already narrowed. The clip has to
+        // be a box: a cylinder about the axis also trims the lug's ends, whose
+        // corners sit at radius sqrt(clamp_offset^2 + (hub_dia/2)^2) -- 16.35mm
+        // against a 13.70mm hub radius. That took the seat down to 38% of a
+        // full annulus, which is a nut bearing on a crescent.
+        intersection() {
+            translate([0, clamp_offset, cz]) rotate([0, 90, 0])
+                cylinder(h = hub_dia, d = boss_dia, center = true, $fn = 48);
+            translate([-hub_dia, -hub_dia, z_base])
+                cube([2 * hub_dia, 2 * hub_dia, hub_h]);
+        }
+}
+
+module clamp_cuts(z_base) {
+    cz = z_base + hub_h / 2;
     if (hub_h > 0 && clamp != "None") {
-        clamp_slot();
+        clamp_slot(z_base);
         // Screw runs beside the bore, crossing the slot. Through the middle it
         // would foul the shaft and clamp nothing.
-        translate([0, clamp_offset, clamp_z]) rotate([0, 90, 0])
+        translate([0, clamp_offset, cz]) rotate([0, 90, 0])
             cylinder(h = hub_dia * 1.4, d = screw_free, center = true, $fn = 32);
-        if (clamp == "Captive nut")
-            translate([hub_dia / 2 - nut_thick - 0.6, clamp_offset, clamp_z])
-                rotate([0, 90, 0])
-                    cylinder(h = nut_thick + 0.4, d = nut_af / cos(30), $fn = 6);
+
+        // Head seat, +X end: a flat-bottomed counterbore, so the head pulls
+        // against a face square to it instead of skidding on the hub's curve.
+        translate([hub_dia / 2 - screw_seat_depth, clamp_offset, cz])
+            rotate([0, 90, 0])
+                cylinder(h = screw_seat_depth + EPS, d = seat_dia, $fn = 48);
+
+        // Nut seat, -X end. A captive nut gets a hex pocket so it cannot turn
+        // while the screw is tightened; anything else gets the same flat
+        // counterbore, which is what a plain or nyloc nut needs to sit square.
+        //
+        // $fn=6 puts vertices at 0 and 180 degrees, which this rotation sends
+        // to straight up and straight down -- so the pocket's roof is a point,
+        // not a flat bridge, and prints without support like the rest.
+        translate([-hub_dia / 2 - EPS, clamp_offset, cz]) rotate([0, 90, 0])
+            if (clamp == "Captive nut")
+                cylinder(h = nut_thick + 0.4 + EPS, d = nut_af / cos(30) + 0.3,
+                         $fn = 6);
+            else
+                cylinder(h = screw_seat_depth + EPS, d = seat_dia, $fn = 48);
+
         if (clamp == "Collet shell")
-            translate([0, 0, total_h - EPS])
+            translate([0, 0, z_base - EPS])
                 cylinder(h = hub_h + 2 * EPS, d = collet_od + 2 * bore_clearance);
     }
 }
@@ -551,13 +628,20 @@ module pulley_body(n = 0) {
             translate([0, 0, flange_bottom])
                 cylinder(h = body_h, d = outside_dia_of(nn));
             if (flange_top > 0) flange(total_h, true, nn);
-            if (hub_h > 0)
-                translate([0, 0, total_h - EPS])
+            if (hub_h > 0) {
+                sk = hub_skirt_of(nn);
+                if (sk > 0)
+                    translate([0, 0, total_h - EPS])
+                        cylinder(h = sk + EPS, d1 = hub_base_dia_of(nn),
+                                 d2 = hub_dia);
+                translate([0, 0, total_h + sk - EPS])
                     cylinder(h = hub_h + EPS, d = hub_dia);
+                clamp_boss(total_h + sk);
+            }
         }
         translate([0, 0, flange_bottom]) teeth_cut(body_h, nn);
-        bore_cut(total_h + hub_h);
-        clamp_cuts();
+        bore_cut(total_h + hub_skirt_of(nn) + hub_h);
+        clamp_cuts(total_h + hub_skirt_of(nn));
     }
 }
 
@@ -612,3 +696,7 @@ echo(str("PULLEY  pitch dia ", pitch_dia, "  outside dia ", outside_dia,
          "  root dia ", root_dia));
 echo(str("PULLEY  flange dia ", flange_dia, "  total height ", total_h + hub_h,
          "  bore ", bore_type, " ", bore_fit));
+if (hub_h > 0 && clamp != "None")
+    echo(str("PULLEY  clamp: ", clamp_screw, " screw at least ", ceil(hub_dia),
+             "mm long, plus a nut. Hub ", r2(hub_dia), "mm, seats ",
+             r2(seat_dia), "mm across x ", screw_seat_depth, "mm deep."));
