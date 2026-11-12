@@ -113,11 +113,14 @@ clamp = "Split clamp"; // [Split clamp, Collet shell, None]
 // Screw size used by the chosen clamp.
 clamp_screw = "M3";    // [M3, M4, M5]
 
-// Depth of the flat seats counterbored into the hub for the screw head and the
-// nut. Without them both land on the hub's curved, steeply angled outside and
-// cannot pull square -- which is no clamp at all. Nothing under 2mm gives a
-// head anything real to pull against.
-screw_seat_depth = 2.0; // [1.0:0.1:6.0]
+// How far the screw head is sunk into the lug. Zero is allowed here, unlike
+// the fillet and the relief: the lug's end face is already flat and square to
+// the screw, so at zero the head simply sits proud on it instead of recessed.
+// What was never acceptable is no lug at all, with the head on the hub's
+// curved, steeply angled outside, where it cannot pull square.
+//
+// The nut's own pocket is not set by this -- it is as deep as the nut is tall.
+countersink_depth = 2.0; // [0:0.1:6.0]
 
 
 /* [Output] */
@@ -599,9 +602,13 @@ module clamp_cuts(z_base) {
 
         // Head seat, +X end: a flat-bottomed counterbore, so the head pulls
         // against a face square to it instead of skidding on the hub's curve.
-        translate([hub_dia / 2 - screw_seat_depth, clamp_offset, cz])
-            rotate([0, 90, 0])
-                cylinder(h = screw_seat_depth + EPS, d = seat_dia, $fn = 48);
+        // Skipped entirely at zero rather than cut to nothing, which would
+        // only shave a facet off the lug face.
+        if (countersink_depth > 0)
+            translate([hub_dia / 2 - countersink_depth, clamp_offset, cz])
+                rotate([0, 90, 0])
+                    cylinder(h = countersink_depth + EPS, d = seat_dia,
+                             $fn = 48);
 
         // Nut seat, -X end: a hex pocket, so the nut cannot turn while the
         // screw is tightened. Deep enough to swallow the nut, so a nyloc sits
@@ -733,9 +740,9 @@ if (hub_h > hub_length && clamp != "None")
              " nut pocket without it breaking out of the hub faces."));
 if (hub_h > 0 && clamp != "None")
     echo(str("PULLEY  clamp: ", clamp_screw, " x ",
-             ceil(hub_dia - screw_seat_depth),
+             ceil(hub_dia - countersink_depth),
              "mm or longer, plus one ", clamp_screw,
              " nut (plain or nyloc). The nut drops into a hex pocket ",
              r2(nut_af), "mm across flats x ", r2(nut_thick + 0.4),
              "mm deep; the head seats in a ", r2(seat_dia), "mm counterbore ",
-             screw_seat_depth, "mm deep."));
+             countersink_depth, "mm deep."));
