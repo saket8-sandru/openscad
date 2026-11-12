@@ -104,7 +104,7 @@ hub_length = 8;        // [0:1:30]
 // How the hub grips the shaft. A plain screw hole does nothing in plastic --
 // there is no thread to hold it -- so every option here uses real hardware or
 // real elasticity instead.
-clamp = "Split clamp"; // [Split clamp, Captive nut, Collet shell, None]
+clamp = "Split clamp"; // [Split clamp, Collet shell, None]
 
 // Screw size used by the chosen clamp.
 clamp_screw = "M3";    // [M3, M4, M5]
@@ -275,6 +275,7 @@ head_dia = clamp_screw == "M5" ? 8.5 : clamp_screw == "M4" ? 7.0 : 5.5;
 // corners, plus a little slop.
 seat_dia  = max(head_dia, nut_af / cos(30)) + 0.4;
 SEAT_WALL = 1.4;     // material between a seat and the bore, and around a seat
+NUT_SLACK = 0.3;     // across flats, so a nut drops in without being forced
 
 // The hub has to clear the bore AND carry the clamp screw beside it, since a
 // screw through the middle would just hit the shaft. What sets the offset is
@@ -521,8 +522,11 @@ module bore_cut(height) {
 // one screw pulls the two sides together. Grip is round the whole shaft rather
 // than one dent from a grub screw point, and it cannot mar a steel shaft.
 //
-// Captive nut: same slot, but the far side holds a hex nut so the screw has a
-// real thread to pull against.
+// The nut is captive in a hex pocket, always. It used to be a separate option
+// with a plain round seat as the alternative, and that alternative was no
+// option at all: a nut sunk 2mm into a round recess cannot be reached with a
+// wrench and simply spins when the screw is turned. If there is a screw there
+// is a captive nut.
 //
 // Collet shell: a separate split sleeve drops inside the hub and the screw
 // squeezes it onto the shaft. Costs a second part, but the grip is a full
@@ -572,19 +576,19 @@ module clamp_cuts(z_base) {
             rotate([0, 90, 0])
                 cylinder(h = screw_seat_depth + EPS, d = seat_dia, $fn = 48);
 
-        // Nut seat, -X end. A captive nut gets a hex pocket so it cannot turn
-        // while the screw is tightened; anything else gets the same flat
-        // counterbore, which is what a plain or nyloc nut needs to sit square.
+        // Nut seat, -X end: a hex pocket, so the nut cannot turn while the
+        // screw is tightened. Deep enough to swallow the nut, so a nyloc sits
+        // in it as readily as a plain one.
         //
         // $fn=6 puts vertices at 0 and 180 degrees, which this rotation sends
         // to straight up and straight down -- so the pocket's roof is a point,
         // not a flat bridge, and prints without support like the rest.
         translate([-hub_dia / 2 - EPS, clamp_offset, cz]) rotate([0, 90, 0])
-            if (clamp == "Captive nut")
-                cylinder(h = nut_thick + 0.4 + EPS, d = nut_af / cos(30) + 0.3,
-                         $fn = 6);
-            else
-                cylinder(h = screw_seat_depth + EPS, d = seat_dia, $fn = 48);
+            // Slack applied ACROSS FLATS, which is the dimension a nut is
+            // made to. Adding it to the circum-diameter instead scales it by
+            // cos(30) on the way back out: asking for 0.30 gave 0.26.
+            cylinder(h = nut_thick + 0.4 + EPS,
+                     d = (nut_af + NUT_SLACK) / cos(30), $fn = 6);
 
         if (clamp == "Collet shell")
             translate([0, 0, z_base - EPS])
@@ -697,6 +701,10 @@ echo(str("PULLEY  pitch dia ", pitch_dia, "  outside dia ", outside_dia,
 echo(str("PULLEY  flange dia ", flange_dia, "  total height ", total_h + hub_h,
          "  bore ", bore_type, " ", bore_fit));
 if (hub_h > 0 && clamp != "None")
-    echo(str("PULLEY  clamp: ", clamp_screw, " screw at least ", ceil(hub_dia),
-             "mm long, plus a nut. Hub ", r2(hub_dia), "mm, seats ",
-             r2(seat_dia), "mm across x ", screw_seat_depth, "mm deep."));
+    echo(str("PULLEY  clamp: ", clamp_screw, " x ",
+             ceil(hub_dia - screw_seat_depth),
+             "mm or longer, plus one ", clamp_screw,
+             " nut (plain or nyloc). The nut drops into a hex pocket ",
+             r2(nut_af), "mm across flats x ", r2(nut_thick + 0.4),
+             "mm deep; the head seats in a ", r2(seat_dia), "mm counterbore ",
+             screw_seat_depth, "mm deep."));
