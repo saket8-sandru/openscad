@@ -377,7 +377,17 @@ assert(output != "Size set" || max(set_span_x, set_span_y) <= PLATE_MAX,
 flange_bottom = (flanges == "Both sides" || flanges == "One side") ? flange_thickness : 0;
 flange_top    = (flanges == "Both sides") ? flange_thickness : 0;
 total_h = flange_bottom + body_h + flange_top;
-hub_h   = (hub == "Extended hub") ? max(0, hub_length) : 0;
+// The lug carrying the seats is boss_dia across, and it lies on its side in
+// the hub, so the hub has to be at least that tall. Shorter and the seats cut
+// straight out through the hub's top and bottom faces: at the stock 8mm hub
+// every screw size did, the hex pocket losing the corners that hold a nut from
+// turning, which is the one thing it is there for.
+//
+// Raised rather than refused. A hub too short to hold its own clamp is a
+// mistake with one right answer, and asking the user to discover 11.28 for
+// themselves helps nobody.
+min_hub_h = (clamp == "None") ? 0 : boss_dia;
+hub_h   = (hub == "Extended hub") ? max(max(0, hub_length), min_hub_h) : 0;
 
 
 // =====================================================================
@@ -708,6 +718,10 @@ echo(str("PULLEY  pitch dia ", pitch_dia, "  outside dia ", outside_dia,
          "  root dia ", root_dia));
 echo(str("PULLEY  flange dia ", flange_dia, "  total height ", total_h + hub_h,
          "  bore ", bore_type, " ", bore_fit));
+if (hub_h > hub_length && clamp != "None")
+    echo(str("PULLEY  hub raised from ", hub_length, "mm to ", r2(hub_h),
+             "mm, the least that holds an ", clamp_screw,
+             " nut pocket without it breaking out of the hub faces."));
 if (hub_h > 0 && clamp != "None")
     echo(str("PULLEY  clamp: ", clamp_screw, " x ",
              ceil(hub_dia - screw_seat_depth),
