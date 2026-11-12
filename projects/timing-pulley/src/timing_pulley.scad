@@ -56,8 +56,9 @@ set_teeth_4 = 40;      // [0:1:75]
 
 /* [Flanges] */
 
-// Rims that stop the belt walking off.
-flanges = "Both sides"; // [Both sides, One side, None]
+// Rims that stop the belt walking off. There is no "none": an unflanged pulley
+// is an idler, and this is not one.
+flanges = "Both sides"; // [Both sides, One side]
 
 // How far the flange stands above the tooth tips.
 flange_height = 1.4;   // [1.0:0.5:10.0]
@@ -80,14 +81,17 @@ d_flat = 0.5;          // [0.2:0.05:2.0]
 // Corner relief for the cornered bores -- hex, square and REX. A nozzle cannot
 // turn a sharp inside corner, so it leaves a fillet of material exactly where
 // a shaft's corner needs to go, and the shaft will not seat. A small circle
-// cut at each corner gives the nozzle somewhere to turn into. 0 disables it.
-corner_relief = 0.6;   // [0:0.05:1.5]
+// cut at each corner gives the nozzle somewhere to turn into. The slider does
+// not reach zero: a cornered bore without relief does not fit its shaft, so
+// there is nothing to offer.
+corner_relief = 0.6;   // [0.20:0.05:1.5]
 
 // Fillet radius on the bore's top and bottom edges -- the edges a shaft meets
 // going in. A printed hole has a lip at each mouth whatever the bore measures,
 // the first layer squashing outward and the last sagging inward, and without
-// this the shaft lands on that lip instead of on the bore. 0 disables it.
-bore_fillet = 0.6;     // [0:0.1:3.0]
+// this the shaft lands on that lip instead of on the bore. The slider does not
+// reach zero, for the same reason the relief does not.
+bore_fillet = 0.6;     // [0.20:0.1:3.0]
 
 // Added all round the bore. Raise if shafts are tight, lower if loose.
 bore_clearance = 0.15; // [0.000:0.025:0.600]
@@ -311,8 +315,7 @@ boss_dia = seat_dia + 2 * SEAT_WALL;
 //
 // Taken per tooth count, because a Size set puts different diameters under the
 // same hub and each one needs its own skirt.
-function hub_base_dia_of(n) = (flanges == "None")
-    ? outside_dia_of(n) : outside_dia_of(n) + 2 * flange_rise;
+function hub_base_dia_of(n) = outside_dia_of(n) + 2 * flange_rise;
 function hub_skirt_of(n) =
     (hub_h > 0 && hub_dia > hub_base_dia_of(n))
         ? (hub_dia - hub_base_dia_of(n)) / 2 : 0;
@@ -332,8 +335,7 @@ function hub_skirt_of(n) =
 // overlap impossible by construction, so no cap is needed at all.
 flange_rise = flange_height;
 
-chamfers_in_channel = (flanges == "Both sides") ? 2
-                    : (flanges == "One side")   ? 1 : 0;
+chamfers_in_channel = (flanges == "Both sides") ? 2 : 1;
 
 // What the belt actually gets, at full groove depth.
 belt_seat = belt_width + belt_clearance;
@@ -374,7 +376,7 @@ assert(output != "Size set" || max(set_span_x, set_span_y) <= PLATE_MAX,
            "count, or set a slot to 0 to drop that wheel and print it ",
            "separately."));
 
-flange_bottom = (flanges == "Both sides" || flanges == "One side") ? flange_thickness : 0;
+flange_bottom = flange_thickness;   // there is always at least one flange
 flange_top    = (flanges == "Both sides") ? flange_thickness : 0;
 total_h = flange_bottom + body_h + flange_top;
 // The lug carrying the seats is boss_dia across, and it lies on its side in

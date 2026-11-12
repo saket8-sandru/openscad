@@ -368,9 +368,11 @@
       }
     },
     {
-      "name": "flange_none",
+      "name": "flange_thin_one_side",
       "params": {
-        "flanges": "None"
+        "flanges": "One side",
+        "flange_thickness": 0.6,
+        "flange_height": 1.0
       },
       "expect": {
         "watertight": true,
