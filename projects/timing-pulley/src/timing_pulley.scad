@@ -229,7 +229,12 @@ nut_af    = clamp_screw == "M5" ? 8.0 : clamp_screw == "M4" ? 7.0 : 5.5;
 nut_thick = clamp_screw == "M5" ? 4.7 : clamp_screw == "M4" ? 3.2 : 2.4;
 // Clearance hole, so the screw pulls the two halves together rather than
 // threading into the near half and jacking them apart.
-screw_free = screw_dia + 0.6;
+//
+// 0.4 over nominal: M3 3.4, M4 4.4, M5 5.4. The M4 figure is the user's, and
+// the others follow it. Note the hole prints on its side here, since the part
+// prints axis-up, so expect it a little under nominal and a little oval at the
+// top. Open it with a 4.4mm bit if a screw binds rather than growing the model.
+screw_free = screw_dia + 0.4;
 
 bore_d = bore_type == "REX 8mm" ? 8 : bore_size;
 // Clearance is applied to the bore, so it is added to a hole's size.
@@ -568,7 +573,10 @@ module clamp_cuts(z_base) {
         // Screw runs beside the bore, crossing the slot. Through the middle it
         // would foul the shaft and clamp nothing.
         translate([0, clamp_offset, cz]) rotate([0, 90, 0])
-            cylinder(h = hub_dia * 1.4, d = screw_free, center = true, $fn = 32);
+            // $fn=64, not 32: a polygon is drawn through the circle, so what a
+            // screw actually passes is the inscribed size. At 32 facets a
+            // 4.4mm hole passes 4.379; at 64 it passes 4.395.
+            cylinder(h = hub_dia * 1.4, d = screw_free, center = true, $fn = 64);
 
         // Head seat, +X end: a flat-bottomed counterbore, so the head pulls
         // against a face square to it instead of skidding on the hub's curve.
