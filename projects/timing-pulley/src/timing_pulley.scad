@@ -449,9 +449,16 @@ module corner_cuts(pts) {
 module bore_2d() {
     if (bore_type == "Round")        circle(d = bore_fit);
     else if (bore_type == "D-shaft")
+        // The cut plane sits d_flat above the bottom of the circle, so the flat
+        // is d_flat deep. It used to read -bore_fit/2 - (bore_fit/2 - d_flat),
+        // which takes the radius off twice and puts the plane clear BELOW the
+        // circle: on a 6mm bore it landed at -5.80 against a circle reaching
+        // -3.15, so nothing was cut and a D-shaft bore came out perfectly
+        // round. Measured at 0.033mm of flat, which is the facet noise on a
+        // circle, where 0.5 was asked for.
         intersection() {
             circle(d = bore_fit);
-            translate([-bore_fit, -bore_fit / 2 - (bore_fit / 2 - d_flat)])
+            translate([-bore_fit, d_flat - bore_fit / 2])
                 square([2 * bore_fit, 2 * bore_fit]);
         }
     else if (bore_type == "Hex")
