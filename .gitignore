@@ -12,6 +12,9 @@ projects/*/exports/*
 !projects/*/exports/fit_coupon.stl
 !projects/*/exports/joining_keys.stl
 !projects/*/exports/default.stl
+!projects/ftc-biobuzz-bot/exports/*.step
+!projects/ftc-biobuzz-bot/exports/*.stl
+!projects/ftc-biobuzz-bot/exports/*.json
 
 *.stl.tmp
 *.csg

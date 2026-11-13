@@ -1,0 +1,606 @@
+{
+ "arm_angle": 90.0,
+ "parts": 71,
+ "interferences": [],
+ "close_pairs": [
+  {
+   "a": "pod_L_outer_plate",
+   "b": "pod_L_F_axle_8REX",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_L_outer_plate",
+   "b": "pod_L_F_idler_shaft_8REX",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_L_outer_plate",
+   "b": "pod_L_F_pinion_16T",
+   "mm": 1.0
+  },
+  {
+   "a": "pod_L_outer_plate",
+   "b": "pod_L_F_gear_64T",
+   "mm": 1.0
+  },
+  {
+   "a": "pod_L_outer_plate",
+   "b": "pod_L_F_motor_5000",
+   "mm": 1.0
+  },
+  {
+   "a": "pod_L_outer_plate",
+   "b": "pod_L_F_motor_shaft",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_L_outer_plate",
+   "b": "pod_L_B_axle_8REX",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_L_outer_plate",
+   "b": "pod_L_B_idler_shaft_8REX",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_L_outer_plate",
+   "b": "pod_L_B_pinion_16T",
+   "mm": 1.0
+  },
+  {
+   "a": "pod_L_outer_plate",
+   "b": "pod_L_B_gear_64T",
+   "mm": 1.0
+  },
+  {
+   "a": "pod_L_outer_plate",
+   "b": "pod_L_B_motor_5000",
+   "mm": 1.0
+  },
+  {
+   "a": "pod_L_outer_plate",
+   "b": "pod_L_B_motor_shaft",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_L_inner_plate",
+   "b": "pod_L_F_axle_8REX",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_L_inner_plate",
+   "b": "pod_L_F_idler_shaft_8REX",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_L_inner_plate",
+   "b": "pod_L_B_axle_8REX",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_L_inner_plate",
+   "b": "pod_L_B_idler_shaft_8REX",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_L_inner_plate",
+   "b": "deck",
+   "mm": 0.0
+  },
+  {
+   "a": "pod_L_inner_plate",
+   "b": "rear_cross_tube",
+   "mm": 0.0
+  },
+  {
+   "a": "pod_L_F_mecanum_104",
+   "b": "pod_L_F_axle_8REX",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_L_F_mecanum_104",
+   "b": "pod_L_F_idler_shaft_8REX",
+   "mm": 1.0
+  },
+  {
+   "a": "pod_L_F_axle_8REX",
+   "b": "pod_L_F_gear_60T",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_L_F_idler_shaft_8REX",
+   "b": "pod_L_F_gear_64T",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_L_F_idler_shaft_8REX",
+   "b": "pod_L_F_gear_20T",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_L_F_pinion_16T",
+   "b": "pod_L_F_gear_64T",
+   "mm": 0.6
+  },
+  {
+   "a": "pod_L_F_pinion_16T",
+   "b": "pod_L_F_motor_shaft",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_L_B_mecanum_104",
+   "b": "pod_L_B_axle_8REX",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_L_B_mecanum_104",
+   "b": "pod_L_B_idler_shaft_8REX",
+   "mm": 1.0
+  },
+  {
+   "a": "pod_L_B_axle_8REX",
+   "b": "pod_L_B_gear_60T",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_L_B_idler_shaft_8REX",
+   "b": "pod_L_B_gear_64T",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_L_B_idler_shaft_8REX",
+   "b": "pod_L_B_gear_20T",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_L_B_pinion_16T",
+   "b": "pod_L_B_gear_64T",
+   "mm": 0.6
+  },
+  {
+   "a": "pod_L_B_pinion_16T",
+   "b": "pod_L_B_motor_shaft",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_R_outer_plate",
+   "b": "pod_R_F_axle_8REX",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_R_outer_plate",
+   "b": "pod_R_F_idler_shaft_8REX",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_R_outer_plate",
+   "b": "pod_R_F_pinion_16T",
+   "mm": 1.0
+  },
+  {
+   "a": "pod_R_outer_plate",
+   "b": "pod_R_F_gear_64T",
+   "mm": 1.0
+  },
+  {
+   "a": "pod_R_outer_plate",
+   "b": "pod_R_F_motor_5000",
+   "mm": 1.0
+  },
+  {
+   "a": "pod_R_outer_plate",
+   "b": "pod_R_F_motor_shaft",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_R_outer_plate",
+   "b": "pod_R_B_axle_8REX",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_R_outer_plate",
+   "b": "pod_R_B_idler_shaft_8REX",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_R_outer_plate",
+   "b": "pod_R_B_pinion_16T",
+   "mm": 1.0
+  },
+  {
+   "a": "pod_R_outer_plate",
+   "b": "pod_R_B_gear_64T",
+   "mm": 1.0
+  },
+  {
+   "a": "pod_R_outer_plate",
+   "b": "pod_R_B_motor_5000",
+   "mm": 1.0
+  },
+  {
+   "a": "pod_R_outer_plate",
+   "b": "pod_R_B_motor_shaft",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_R_inner_plate",
+   "b": "pod_R_F_axle_8REX",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_R_inner_plate",
+   "b": "pod_R_F_idler_shaft_8REX",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_R_inner_plate",
+   "b": "pod_R_B_axle_8REX",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_R_inner_plate",
+   "b": "pod_R_B_idler_shaft_8REX",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_R_inner_plate",
+   "b": "deck",
+   "mm": 0.0
+  },
+  {
+   "a": "pod_R_inner_plate",
+   "b": "rear_cross_tube",
+   "mm": 0.0
+  },
+  {
+   "a": "pod_R_F_mecanum_104",
+   "b": "pod_R_F_axle_8REX",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_R_F_mecanum_104",
+   "b": "pod_R_F_idler_shaft_8REX",
+   "mm": 1.0
+  },
+  {
+   "a": "pod_R_F_axle_8REX",
+   "b": "pod_R_F_gear_60T",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_R_F_idler_shaft_8REX",
+   "b": "pod_R_F_gear_64T",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_R_F_idler_shaft_8REX",
+   "b": "pod_R_F_gear_20T",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_R_F_pinion_16T",
+   "b": "pod_R_F_gear_64T",
+   "mm": 0.6
+  },
+  {
+   "a": "pod_R_F_pinion_16T",
+   "b": "pod_R_F_motor_shaft",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_R_B_mecanum_104",
+   "b": "pod_R_B_axle_8REX",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_R_B_mecanum_104",
+   "b": "pod_R_B_idler_shaft_8REX",
+   "mm": 1.0
+  },
+  {
+   "a": "pod_R_B_axle_8REX",
+   "b": "pod_R_B_gear_60T",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_R_B_idler_shaft_8REX",
+   "b": "pod_R_B_gear_64T",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_R_B_idler_shaft_8REX",
+   "b": "pod_R_B_gear_20T",
+   "mm": 0.1
+  },
+  {
+   "a": "pod_R_B_pinion_16T",
+   "b": "pod_R_B_gear_64T",
+   "mm": 0.6
+  },
+  {
+   "a": "pod_R_B_pinion_16T",
+   "b": "pod_R_B_motor_shaft",
+   "mm": 0.1
+  },
+  {
+   "a": "deck",
+   "b": "entry_lip",
+   "mm": 0.0
+  },
+  {
+   "a": "deck",
+   "b": "rear_cross_tube",
+   "mm": 0.0
+  },
+  {
+   "a": "deck",
+   "b": "control_hub_placeholder",
+   "mm": 0.0
+  },
+  {
+   "a": "deck",
+   "b": "battery_placeholder",
+   "mm": 0.0
+  },
+  {
+   "a": "deck",
+   "b": "hood",
+   "mm": 0.0
+  },
+  {
+   "a": "deck",
+   "b": "shooter_plate_L",
+   "mm": 0.0
+  },
+  {
+   "a": "deck",
+   "b": "shooter_plate_R",
+   "mm": 0.0
+  },
+  {
+   "a": "rear_cross_tube",
+   "b": "control_hub_placeholder",
+   "mm": 1.0
+  },
+  {
+   "a": "hood",
+   "b": "shooter_plate_L",
+   "mm": 0.0
+  },
+  {
+   "a": "hood",
+   "b": "shooter_plate_R",
+   "mm": 0.0
+  },
+  {
+   "a": "flywheel_72x30",
+   "b": "flywheel_shaft_8REX",
+   "mm": 0.1
+  },
+  {
+   "a": "flywheel_shaft_8REX",
+   "b": "flywheel_gear_24T",
+   "mm": 0.1
+  },
+  {
+   "a": "flywheel_shaft_8REX",
+   "b": "flywheel_motor_5000",
+   "mm": 0.1
+  },
+  {
+   "a": "flywheel_shaft_8REX",
+   "b": "shooter_plate_L",
+   "mm": 0.1
+  },
+  {
+   "a": "flywheel_shaft_8REX",
+   "b": "shooter_plate_R",
+   "mm": 0.1
+  },
+  {
+   "a": "flywheel_gear_24T",
+   "b": "flywheel_motor_pinion_24T",
+   "mm": 0.6
+  },
+  {
+   "a": "flywheel_motor_pinion_24T",
+   "b": "flywheel_motor_shaft",
+   "mm": 0.1
+  },
+  {
+   "a": "flywheel_motor_5000",
+   "b": "shooter_plate_R",
+   "mm": 1.0
+  },
+  {
+   "a": "flywheel_motor_shaft",
+   "b": "shooter_plate_R",
+   "mm": 0.1
+  },
+  {
+   "a": "feed_gecko48_0",
+   "b": "feed_shaft_8REX",
+   "mm": 0.1
+  },
+  {
+   "a": "feed_gecko48_1",
+   "b": "feed_shaft_8REX",
+   "mm": 0.1
+  },
+  {
+   "a": "feed_gecko48_2",
+   "b": "feed_shaft_8REX",
+   "mm": 0.1
+  },
+  {
+   "a": "feed_shaft_8REX",
+   "b": "feed_gear_72T",
+   "mm": 0.1
+  },
+  {
+   "a": "feed_shaft_8REX",
+   "b": "shooter_plate_L",
+   "mm": 0.1
+  },
+  {
+   "a": "feed_shaft_8REX",
+   "b": "shooter_plate_R",
+   "mm": 0.1
+  },
+  {
+   "a": "feed_shaft_8REX",
+   "b": "arm_plate_L",
+   "mm": 0.1
+  },
+  {
+   "a": "feed_shaft_8REX",
+   "b": "arm_plate_R",
+   "mm": 0.1
+  },
+  {
+   "a": "feed_shaft_8REX",
+   "b": "arm_belt_drive_placeholder",
+   "mm": 0.1
+  },
+  {
+   "a": "feed_gear_72T",
+   "b": "feed_motor_pinion_24T",
+   "mm": 0.6
+  },
+  {
+   "a": "feed_gear_72T",
+   "b": "feed_motor_5000",
+   "mm": 1.0
+  },
+  {
+   "a": "feed_motor_pinion_24T",
+   "b": "feed_motor_5000",
+   "mm": 1.0
+  },
+  {
+   "a": "feed_motor_pinion_24T",
+   "b": "feed_motor_shaft",
+   "mm": 0.1
+  },
+  {
+   "a": "arm_plate_L",
+   "b": "arm_roller_shaft_8REX",
+   "mm": 0.1
+  },
+  {
+   "a": "arm_plate_L",
+   "b": "arm_vector_wheel_L",
+   "mm": 1.0
+  },
+  {
+   "a": "arm_plate_R",
+   "b": "arm_roller_shaft_8REX",
+   "mm": 0.1
+  },
+  {
+   "a": "arm_plate_R",
+   "b": "arm_vector_wheel_R",
+   "mm": 1.0
+  },
+  {
+   "a": "arm_roller_shaft_8REX",
+   "b": "arm_gecko48_0",
+   "mm": 0.1
+  },
+  {
+   "a": "arm_roller_shaft_8REX",
+   "b": "arm_gecko48_1",
+   "mm": 0.1
+  },
+  {
+   "a": "arm_roller_shaft_8REX",
+   "b": "arm_gecko48_2",
+   "mm": 0.1
+  },
+  {
+   "a": "arm_roller_shaft_8REX",
+   "b": "arm_vector_wheel_L",
+   "mm": 0.1
+  },
+  {
+   "a": "arm_roller_shaft_8REX",
+   "b": "arm_vector_wheel_R",
+   "mm": 0.1
+  },
+  {
+   "a": "arm_roller_shaft_8REX",
+   "b": "arm_belt_drive_placeholder",
+   "mm": 0.1
+  },
+  {
+   "a": "arm_gecko48_0",
+   "b": "arm_vector_wheel_R",
+   "mm": 1.5
+  },
+  {
+   "a": "arm_gecko48_2",
+   "b": "arm_vector_wheel_L",
+   "mm": 1.5
+  }
+ ],
+ "ball_violations": [],
+ "mass_kg": 6.137,
+ "cg_mm": [
+  -7.1,
+  0.9,
+  70.4
+ ],
+ "envelope_mm": {
+  "x": [
+   -182.0,
+   182.0
+  ],
+  "y": [
+   -188.5,
+   188.5
+  ],
+  "z": [
+   0.0,
+   210.3
+  ]
+ },
+ "summary": {
+  "drive_ratio": 12.0,
+  "wheel_rpm": 500.0,
+  "drive_speed_m_s": 2.7227136331111543,
+  "motor_to_wheel_gap": 10.0,
+  "lip_tip_z": 4.923862267410012,
+  "fly_center": [
+   30.0,
+   120.1
+  ],
+  "hood_R": 97.1,
+  "ball_orbit_R": 61.55,
+  "hood_wrap_deg": 135.0,
+  "fly_tip_speed_m_s": 22.61946710584651,
+  "feed_center": [
+   90.67330549755798,
+   105.1
+  ],
+  "handover_overlap_mm": 3.2228223540667855,
+  "feed_ratio": 3.0,
+  "feed_surface_m_s": 5.026548245743669,
+  "arm_len": 71.62534865977914,
+  "arm_roller": [
+   108.67330549755798,
+   174.42669450244202
+  ],
+  "arm_roller_deployed": [
+   160.0,
+   87.1
+  ],
+  "vector_wheel_fits": true,
+  "ball_r": 35.55,
+  "zf": 120.1,
+  "hood_exit_lip": [
+   -40.78138879677341,
+   190.8813887967734
+  ]
+ }
+}

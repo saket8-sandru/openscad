@@ -1,0 +1,13 @@
+{
+  "autodeskProduct": "Fusion360",
+  "type": "addin",
+  "id": "2b3fa8bd-b7b8-462f-9525-e17f21fb560c",
+  "author": "",
+  "description": {
+    "": "Localhost HTTP bridge so Claude Code (via MCP or curl) can run Python inside Fusion"
+  },
+  "version": "0.1.0",
+  "runOnStartup": true,
+  "supportedOS": "windows|mac",
+  "editEnabled": true
+}

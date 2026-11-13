@@ -1,0 +1,181 @@
+[
+ {
+  "part": "GripForce Mecanum Wheel 104mm (3625-0202-0104)",
+  "instance": "pod_L_F_mecanum_104",
+  "axis": "Y",
+  "center": [
+   130.0,
+   140.0,
+   52.0
+  ],
+  "note": "set of 4: two left-roller, two right-roller; X pattern viewed from above"
+ },
+ {
+  "part": "5000 Series 12VDC Motor, 8mm REX pinion shaft (5000-0002-4008)",
+  "instance": "pod_L_F_motor_5000",
+  "axis": "Y",
+  "face_center": [
+   51.215379759023364,
+   116.5,
+   65.89185421335442
+  ],
+  "shaft_dir": [
+   0,
+   -1,
+   0
+  ],
+  "note": "faceplate on the OUTER pod plate, body outboard beside the wheel"
+ },
+ {
+  "part": "GripForce Mecanum Wheel 104mm (3625-0202-0104)",
+  "instance": "pod_L_B_mecanum_104",
+  "axis": "Y",
+  "center": [
+   -130.0,
+   140.0,
+   52.0
+  ],
+  "note": "set of 4: two left-roller, two right-roller; X pattern viewed from above"
+ },
+ {
+  "part": "5000 Series 12VDC Motor, 8mm REX pinion shaft (5000-0002-4008)",
+  "instance": "pod_L_B_motor_5000",
+  "axis": "Y",
+  "face_center": [
+   -51.215379759023364,
+   116.5,
+   65.89185421335442
+  ],
+  "shaft_dir": [
+   0,
+   -1,
+   0
+  ],
+  "note": "faceplate on the OUTER pod plate, body outboard beside the wheel"
+ },
+ {
+  "part": "GripForce Mecanum Wheel 104mm (3625-0202-0104)",
+  "instance": "pod_R_F_mecanum_104",
+  "axis": "Y",
+  "center": [
+   130.0,
+   -140.0,
+   52.0
+  ],
+  "note": "set of 4: two left-roller, two right-roller; X pattern viewed from above"
+ },
+ {
+  "part": "5000 Series 12VDC Motor, 8mm REX pinion shaft (5000-0002-4008)",
+  "instance": "pod_R_F_motor_5000",
+  "axis": "Y",
+  "face_center": [
+   51.215379759023364,
+   -116.5,
+   65.89185421335442
+  ],
+  "shaft_dir": [
+   0,
+   1,
+   0
+  ],
+  "note": "faceplate on the OUTER pod plate, body outboard beside the wheel"
+ },
+ {
+  "part": "GripForce Mecanum Wheel 104mm (3625-0202-0104)",
+  "instance": "pod_R_B_mecanum_104",
+  "axis": "Y",
+  "center": [
+   -130.0,
+   -140.0,
+   52.0
+  ],
+  "note": "set of 4: two left-roller, two right-roller; X pattern viewed from above"
+ },
+ {
+  "part": "5000 Series 12VDC Motor, 8mm REX pinion shaft (5000-0002-4008)",
+  "instance": "pod_R_B_motor_5000",
+  "axis": "Y",
+  "face_center": [
+   -51.215379759023364,
+   -116.5,
+   65.89185421335442
+  ],
+  "shaft_dir": [
+   0,
+   1,
+   0
+  ],
+  "note": "faceplate on the OUTER pod plate, body outboard beside the wheel"
+ },
+ {
+  "part": "Flywheel: 2x 72mm wheel, 8mm REX bore (e.g. goBILDA 72mm wheel of choice)",
+  "instance": "flywheel_72x30",
+  "axis": "Y",
+  "center": [
+   30.0,
+   0,
+   120.1
+  ]
+ },
+ {
+  "part": "5000 Series 12VDC Motor (5000-0002-4008) - flywheel",
+  "instance": "flywheel_motor_5000",
+  "axis": "Y",
+  "face_center": [
+   43.576450198781714,
+   -44.0,
+   133.6764501987817
+  ],
+  "shaft_dir": [
+   0,
+   1,
+   0
+  ]
+ },
+ {
+  "part": "3x GripForce Gecko Wheel 48mm, 8mm REX (3613-4008-0048) - feed roller",
+  "instance": "feed_gecko48_*",
+  "axis": "Y",
+  "center": [
+   90.67330549755798,
+   0,
+   105.1
+  ]
+ },
+ {
+  "part": "5000 Series 12VDC Motor (5000-0002-4008) - feed roller + intake",
+  "instance": "feed_motor_5000",
+  "axis": "Y",
+  "face_center": [
+   57.41792999223553,
+   67.0,
+   124.3
+  ],
+  "shaft_dir": [
+   0,
+   -1,
+   0
+  ]
+ },
+ {
+  "part": "3x GripForce Gecko Wheel 48mm (3613-4008-0048) - intake roller centre",
+  "instance": "arm_gecko48_*",
+  "axis": "Y",
+  "center": [
+   108.67330549755798,
+   0,
+   174.42669450244202
+  ]
+ },
+ {
+  "part": "AndyMark 2.25in HD Mecanum Vectored Intake Wheel, L+R pair - intake roller ends",
+  "instance": "arm_vector_wheel_*",
+  "axis": "Y",
+  "center": [
+   108.67330549755798,
+   0,
+   174.42669450244202
+  ],
+  "note": "left-hand wheel on +Y side, right-hand on -Y, so both pull toward the centre"
+ }
+]

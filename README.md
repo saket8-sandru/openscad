@@ -11,6 +11,7 @@ matrix before it is called finished.
 | Project | What it is | Status |
 | --- | --- | --- |
 | [`waveform-wall`](projects/waveform-wall/docs/README.md) | **LAMELLA** — parametric ribbed wave wall-art generator. Any size, tiled automatically, with vertical seams that measure invisible. 22 controls. | CAD-validated, not yet print-tested |
+| [`ftc-biobuzz-bot`](projects/ftc-biobuzz-bot/docs/README.md) | **FTC BIOBUZZ shooter bot** — 104 mm mecanum drive on bare 6000 rpm motors through 12:1 printed gearboxes, flywheel + curved hood shooter, swing-arm gecko/vectored-wheel intake. Built in CadQuery, exported to STEP for Fusion, with a native Fusion script and an MCP bridge (`tools/fusion-mcp`). | CAD-validated (interference + ball-path checks), not built |
 | [`waveform-frame`](projects/waveform-frame/docs/README.md) | **LAMELLA FRAME** — the simple sibling. One framed piece off one plate, natural terrain field, 8 controls. | CAD-validated, not yet print-tested |
 
 The two share a field engine in spirit but not in code: the frame version uses

@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "fusion": {
+      "command": "python3",
+      "args": ["tools/fusion-mcp/server/fusion_mcp_server.py"],
+      "env": { "FUSION_MCP_URL": "http://127.0.0.1:8765" }
+    }
+  }
+}
